@@ -31,7 +31,10 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <div className="container">
       <nav className="nav">
-        <div className="logo">Brickly</div>
+        <Link href="/" className="logo">
+          <img src="/brickylogo.png" alt="Brickly" />
+          <span>Brickly</span>
+        </Link>
         <div className="nav-links">
           <Link href="/properties">Properties</Link>
           {role === "LISTER" && <Link href="/listings">My Listings</Link>}

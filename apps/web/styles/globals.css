@@ -15,7 +15,14 @@
 
 body {
   margin: 0;
-  background: radial-gradient(circle at top, #fffdf8 0%, #f2ede4 45%, #efe8dd 100%);
+  background-color: #f4efe6;
+  background-image:
+    radial-gradient(circle at top, #fffdf8 0%, #f2ede4 45%, #efe8dd 100%),
+    url("/backsplash-dots.svg"),
+    url("/backsplash-tiles.svg");
+  background-repeat: no-repeat, repeat, repeat;
+  background-size: cover, 220px, 320px;
+  background-position: center, top left, top right;
   color: var(--ink);
   font-family: "Iowan Old Style", "Palatino", "Georgia", "Times New Roman", serif;
 }
@@ -63,9 +70,18 @@ a:hover {
 }
 
 .logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-weight: 700;
   letter-spacing: 0.4px;
   font-size: 18px;
+}
+
+.logo img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }
 
 .main {
