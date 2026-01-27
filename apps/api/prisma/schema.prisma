@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  INVESTOR
+  LISTER
+  ADMIN
+  TENANT
+}
+
+enum KycStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PropertyStatus {
+  DRAFT
+  LISTED
+  FUNDED
+  RENT_LISTED
+  RENTED
+  SOLD
+}
+
+enum ListingStatus {
+  DRAFT
+  LISTED
+  WITHDRAWN
+}
+
+enum PropertyType {
+  HOUSE
+  TOWNHOME
+  APARTMENT
+  CONDO
+}
+
+enum SellOrderStatus {
+  OPEN
+  PARTIAL
+  FILLED
+  CANCELLED
+}
+
+model User {
+  id            String       @id @default(uuid()) @db.Uuid
+  email         String?      @unique
+  phone         String?      @unique
+  passwordHash  String
+  role          UserRole
+  createdAt     DateTime     @default(now())
+
+  kycProfile    KycProfile?
+  listings      Listing[]    @relation("UserListings")
+  holdings      Holding[]
+  sellOrders    SellOrder[]
+  buyerTrades   Trade[]      @relation("BuyerTrades")
+  sellerTrades  Trade[]      @relation("SellerTrades")
+  rentalApplications RentalApplication[] @relation("TenantApplications")
+
+  @@index([email])
+  @@index([phone])
+}
+
+model KycProfile {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @unique @db.Uuid
+  status      KycStatus
+  data        Json
+  submittedAt DateTime
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+model Property {
+  id              String         @id @default(uuid()) @db.Uuid
+  type            PropertyType   @default(HOUSE)
+  address1        String
+  city            String
+  state           String
+  zip             String
+  status          PropertyStatus
+  squareFeet      Int?
+  bedrooms        Int?
+  bathrooms       Int?
+  targetRaise     Decimal?       @db.Decimal(14, 2)
+  estMonthlyRent  Decimal?       @db.Decimal(14, 2)
+  createdAt       DateTime       @default(now())
+
+  listings        Listing[]
+  images          PropertyImage[]
+  shareClass      ShareClass?
+  sellOrders      SellOrder[]
+  trades          Trade[]
+  rentalApplications RentalApplication[]
+
+  @@index([city, state])
+  @@index([status])
+}
+
+enum RentalApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model RentalApplication {
+  id           String   @id @default(uuid()) @db.Uuid
+  propertyId   String   @db.Uuid
+  tenantUserId String   @db.Uuid
+  status       RentalApplicationStatus @default(PENDING)
+  rentAmount   Decimal? @db.Decimal(12, 2)
+  createdAt    DateTime @default(now())
+
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant       User     @relation("TenantApplications", fields: [tenantUserId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([tenantUserId])
+  @@index([status])
+}
+
+model Listing {
+  id            String        @id @default(uuid()) @db.Uuid
+  propertyId    String        @db.Uuid
+  listerUserId  String        @db.Uuid
+  bonusPercent  Decimal       @db.Decimal(6, 3)
+  askingPrice   Decimal       @db.Decimal(14, 2)
+  status        ListingStatus
+  postedAt      DateTime?
+
+  property      Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  lister        User          @relation("UserListings", fields: [listerUserId], references: [id], onDelete: Restrict)
+
+  @@index([propertyId])
+  @@index([listerUserId])
+  @@index([status])
+}
+
+model PropertyImage {
+  id          String    @id @default(uuid()) @db.Uuid
+  propertyId  String    @db.Uuid
+  url         String
+  sortOrder   Int
+
+  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([sortOrder])
+}
+
+model ShareClass {
+  id                     String    @id @default(uuid()) @db.Uuid
+  propertyId             String    @unique @db.Uuid
+  totalShares            Int
+  sharesAvailable        Int
+  referencePricePerShare Decimal   @db.Decimal(14, 4)
+
+  property               Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  holdings               Holding[]
+
+  @@index([propertyId])
+}
+
+model Holding {
+  id            String     @id @default(uuid()) @db.Uuid
+  userId        String     @db.Uuid
+  shareClassId  String     @db.Uuid
+  sharesOwned   Int
+  updatedAt     DateTime   @updatedAt
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shareClass    ShareClass @relation(fields: [shareClassId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, shareClassId])
+  @@index([userId])
+  @@index([shareClassId])
+}
+
+model SellOrder {
+  id                    String          @id @default(uuid()) @db.Uuid
+  userId                String          @db.Uuid
+  propertyId            String          @db.Uuid
+  sharesForSale         Int
+  askPricePerShare      Decimal         @db.Decimal(14, 4)
+  optimizedPricePerShare Decimal?       @db.Decimal(14, 4)
+  status                SellOrderStatus
+  createdAt             DateTime        @default(now())
+
+  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property              Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  trades                Trade[]
+
+  @@index([userId])
+  @@index([propertyId])
+  @@index([status])
+}
+
+model Trade {
+  id            String    @id @default(uuid()) @db.Uuid
+  sellOrderId   String    @db.Uuid
+  propertyId    String    @db.Uuid
+  buyerUserId   String    @db.Uuid
+  sellerUserId  String    @db.Uuid
+  sharesTraded  Int
+  pricePerShare Decimal   @db.Decimal(14, 4)
+  tradedAt      DateTime  @default(now())
+
+  sellOrder     SellOrder @relation(fields: [sellOrderId], references: [id], onDelete: Cascade)
+  property      Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  buyer         User      @relation("BuyerTrades", fields: [buyerUserId], references: [id], onDelete: Restrict)
+  seller        User      @relation("SellerTrades", fields: [sellerUserId], references: [id], onDelete: Restrict)
+
+  @@index([sellOrderId])
+  @@index([propertyId])
+  @@index([buyerUserId])
+  @@index([sellerUserId])
+}

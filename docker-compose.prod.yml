@@ -1,0 +1,39 @@
+services:
+  db:
+    image: guidprncons/brickly-db:latest
+    container_name: brickly-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: fractional
+    ports:
+      - "5433:5432"
+    volumes:
+      - brickly_db_data:/var/lib/postgresql/data
+
+  api:
+    image: guidprncons/brickly-api:latest
+    container_name: brickly-api
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgres://app:app@db:5432/fractional
+      JWT_SECRET: dev-secret
+    ports:
+      - "4000:4000"
+
+  web:
+    image: guidprncons/brickly-web:latest
+    container_name: brickly-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:4000
+    ports:
+      - "3000:3000"
+
+volumes:
+  brickly_db_data:

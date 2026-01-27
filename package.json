@@ -1,0 +1,21 @@
+{
+  "name": "fractional-property-app",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n db,api,web -c green,cyan,magenta \"npm run db:up\" \"npm --workspace apps/api run dev\" \"npm --workspace apps/web run dev\"",
+    "db:up": "docker compose up",
+    "db:down": "docker compose down",
+    "db:migrate": "docker compose exec -T db psql -U app -d fractional -f /db/migrations/001_init.sql",
+    "db:seed": "docker compose exec -T db psql -U app -d fractional -f /db/seed.sql",
+    "db:reset": "npm run db:migrate && npm run db:seed",
+    "prisma:generate": "npm --workspace apps/api run prisma:generate",
+    "prisma:migrate": "npm --workspace apps/api run prisma:migrate",
+    "prisma:seed": "npm --workspace apps/api run prisma:seed"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
