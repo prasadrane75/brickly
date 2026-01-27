@@ -36,9 +36,19 @@ if (!process.env.DATABASE_URL) {
 const prisma = new PrismaClient();
 const jwtSecret = process.env.JWT_SECRET || "dev-secret";
 
+const corsOrigins = (process.env.CORS_ORIGINS ||
+  "https://app.bricklyusa.com,http://localhost:3000")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: "*",
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (corsOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("CORS: origin not allowed"));
+    },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
@@ -1074,6 +1084,10 @@ app.post(
 
 app.get("/", (_req, res) => {
   res.send("Fractional Property API");
+});
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
 });
 
 app.listen(port, () => {
