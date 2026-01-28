@@ -1,8 +1,10 @@
 export default function HomePage() {
   return (
-    <main style={{ fontFamily: "system-ui", padding: 32 }}>
-      <h1>Fractional Property Web</h1>
-      <p>Next.js app is running.</p>
+    <main className="home-hero">
+      <div className="home-hero-content">
+        <h1>Brickly</h1>
+        <p>Discover and invest in fractional properties.</p>
+      </div>
     </main>
   );
 }

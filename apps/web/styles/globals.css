@@ -21,7 +21,7 @@ body {
     url("/backsplash-dots.svg"),
     url("/backsplash-tiles.svg");
   background-repeat: no-repeat, repeat, repeat;
-  background-size: cover, 220px, 320px;
+  background-size: cover, 160px, 260px;
   background-position: center, top left, top right;
   color: var(--ink);
   font-family: "Iowan Old Style", "Palatino", "Georgia", "Times New Roman", serif;
@@ -46,7 +46,8 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 16px 20px;
+  height: 72px;
+  padding: 0 20px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -72,20 +73,55 @@ a:hover {
 .logo {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   font-weight: 700;
   letter-spacing: 0.4px;
   font-size: 18px;
+  position: relative;
+  width: 220px;
+  height: 72px;
+  overflow: hidden;
 }
 
 .logo img {
-  width: 28px;
-  height: 28px;
+  position: absolute;
+  left: -40px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: auto;
+  height: 200px;
+  opacity: 0.35;
+  filter: saturate(0.9);
   object-fit: contain;
 }
 
 .main {
   margin-top: 28px;
+}
+
+.home-hero {
+  min-height: 60vh;
+  border-radius: 18px;
+  padding: 48px;
+  background:
+    linear-gradient(120deg, rgba(10, 10, 10, 0.55), rgba(10, 10, 10, 0.1)),
+    url("/backsplash.jpg");
+  background-size: cover;
+  background-position: center;
+  color: #fff;
+  display: flex;
+  align-items: flex-end;
+}
+
+.home-hero-content h1 {
+  margin: 0 0 8px;
+  font-size: 40px;
+  letter-spacing: 0.4px;
+}
+
+.home-hero-content p {
+  margin: 0;
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .section-title {
