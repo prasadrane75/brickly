@@ -205,6 +205,11 @@ a:hover {
   color: #332d24;
 }
 
+.button.danger {
+  background: #b83a2a;
+  color: #fff;
+}
+
 .muted {
   color: var(--muted);
 }

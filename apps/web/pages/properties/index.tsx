@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { apiFetch } from "../../lib/api";
+import { apiFetch, getTokenPayload } from "../../lib/api";
 
 type Property = {
   id: string;
@@ -26,6 +26,7 @@ export default function PropertiesPage() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<string | null>(null);
   const [locationFilter, setLocationFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [sqftFilter, setSqftFilter] = useState("");
@@ -36,11 +37,26 @@ export default function PropertiesPage() {
   const countOptions = Array.from({ length: 5 }, (_, i) => i + 1);
 
   useEffect(() => {
+    setRole(getTokenPayload()?.role ?? null);
     apiFetch<Property[]>("/properties")
       .then((data) => setProperties(data))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, []);
+
+  async function handleDelete(propertyId: string) {
+    const confirmed = window.confirm(
+      "Delete this property? This cannot be undone."
+    );
+    if (!confirmed) return;
+    try {
+      await apiFetch(`/admin/properties/${propertyId}`, { method: "DELETE" });
+      setProperties((prev) => prev.filter((p) => p.id !== propertyId));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Delete failed";
+      setError(message);
+    }
+  }
 
   return (
     <main>
@@ -177,6 +193,14 @@ export default function PropertiesPage() {
                   Shares available: {property.shareClass.sharesAvailable} /{" "}
                   {property.shareClass.totalShares}
                 </p>
+              )}
+              {role === "ADMIN" && property.status === "LISTED" && (
+                <button
+                  className="button danger"
+                  onClick={() => handleDelete(property.id)}
+                >
+                  Delete
+                </button>
               )}
             </li>
           ))}

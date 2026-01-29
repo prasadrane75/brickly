@@ -1082,6 +1082,34 @@ app.post(
   }
 );
 
+app.delete(
+  "/admin/properties/:id",
+  requireAuth,
+  requireRole([UserRole.ADMIN]),
+  async (req, res) => {
+    const { id } = req.params;
+    if (!id) {
+      return sendError(res, 400, "VALIDATION_ERROR", "Property id is required");
+    }
+
+    const property = await prisma.property.findUnique({ where: { id } });
+    if (!property) {
+      return sendError(res, 404, "NOT_FOUND", "Property not found");
+    }
+    if (property.status !== PropertyStatus.LISTED) {
+      return sendError(
+        res,
+        400,
+        "INVALID_STATE",
+        "Only LISTED properties can be deleted"
+      );
+    }
+
+    await prisma.property.delete({ where: { id } });
+    return res.status(204).send();
+  }
+);
+
 app.get("/", (_req, res) => {
   res.send("Fractional Property API");
 });
