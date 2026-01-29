@@ -60,7 +60,15 @@ export async function apiFetch<T>(
     throw new Error(text || `Request failed: ${res.status}`);
   }
 
-  return res.json();
+  if (res.status === 204) {
+    return undefined as unknown as T;
+  }
+
+  const text = await res.text();
+  if (!text) {
+    return undefined as unknown as T;
+  }
+  return JSON.parse(text) as T;
 }
 
 export { API_BASE_URL };
