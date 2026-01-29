@@ -77,21 +77,35 @@ a:hover {
   letter-spacing: 0.4px;
   font-size: 18px;
   position: relative;
-  width: 220px;
   height: 72px;
-  overflow: hidden;
+  max-width: 220px;
 }
 
 .logo img {
-  position: absolute;
-  left: -40px;
-  top: 50%;
-  transform: translateY(-50%);
+  display: block;
+  height: 56px;
   width: auto;
-  height: 200px;
-  opacity: 0.35;
-  filter: saturate(0.9);
+  max-width: 200px;
   object-fit: contain;
+}
+
+@media (max-width: 720px) {
+  .nav {
+    height: auto;
+    padding: 12px 16px;
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  .logo {
+    height: 48px;
+    max-width: 140px;
+  }
+
+  .logo img {
+    height: 40px;
+    max-width: 120px;
+  }
 }
 
 .main {
