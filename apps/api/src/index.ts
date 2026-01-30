@@ -15,6 +15,8 @@ import {
   PropertyType,
 } from "@prisma/client";
 import { z } from "zod";
+import importRoutes from "./import/import.routes.js";
+import { requireAuth, requireKycApproved } from "./middleware/auth.js";
 
 declare global {
   namespace Express {
@@ -55,6 +57,7 @@ app.use(
 );
 app.options("*", cors());
 app.use(express.json());
+app.use("/import", importRoutes);
 
 const registerSchema = z
   .object({
@@ -174,47 +177,6 @@ function sendError(
 
 function signToken(payload: { id: string; role: UserRole }) {
   return jwt.sign(payload, jwtSecret, { expiresIn: "7d" });
-}
-
-async function requireAuth(
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction
-) {
-  const header = req.header("authorization");
-  if (!header || !header.toLowerCase().startsWith("bearer ")) {
-    return sendError(res, 401, "UNAUTHORIZED", "Missing authorization token");
-  }
-
-  const token = header.slice(7).trim();
-  try {
-    const decoded = jwt.verify(token, jwtSecret) as { id: string; role: UserRole };
-    req.user = { id: decoded.id, role: decoded.role };
-    return next();
-  } catch {
-    return sendError(res, 401, "INVALID_TOKEN", "Invalid or expired token");
-  }
-}
-
-async function requireKycApproved(
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction
-) {
-  if (!req.user) {
-    return sendError(res, 401, "UNAUTHORIZED", "Unauthorized");
-  }
-
-  const profile = await prisma.kycProfile.findUnique({
-    where: { userId: req.user.id },
-    select: { status: true },
-  });
-
-  if (!profile || profile.status !== KycStatus.APPROVED) {
-    return sendError(res, 403, "KYC_NOT_APPROVED", "KYC not approved");
-  }
-
-  return next();
 }
 
 function requireRole(roles: UserRole[]) {

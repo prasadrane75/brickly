@@ -42,36 +42,41 @@ export default function KycPage() {
   }
 
   return (
-    <main>
-      <h1 className="section-title">KYC Verification</h1>
-      {profile && (
-        <p>
-          Current status: <strong>{profile.status}</strong>
-        </p>
-      )}
-      <form onSubmit={handleSubmit} className="form">
-        <div>
-          <label className="label">Full name</label>
-          <input
-            className="input"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            required
-          />
-        </div>
-        <div>
-          <label className="label">Country</label>
-          <input
-            className="input"
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-            required
-          />
-        </div>
-        <button type="submit" className="button">
-          Submit KYC
-        </button>
-      </form>
+    <main className="import-page">
+      <section className="import-header">
+        <h1>KYC Verification</h1>
+        <p>Submit your details to unlock listing and investment features.</p>
+      </section>
+      <div className="import-card">
+        {profile && (
+          <p>
+            Current status: <strong>{profile.status}</strong>
+          </p>
+        )}
+        <form onSubmit={handleSubmit} className="form">
+          <div>
+            <label className="label">Full name</label>
+            <input
+              className="input"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="label">Country</label>
+            <input
+              className="input"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              required
+            />
+          </div>
+          <button type="submit" className="import-primary">
+            Submit KYC
+          </button>
+        </form>
+      </div>
       {message && (
         <p className={status === "error" ? "status-error" : "status-success"}>
           {message}

@@ -63,11 +63,39 @@ a:hover {
   flex-wrap: wrap;
 }
 
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.nav-badge {
+  background: #f2c94c;
+  color: #2b2316;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
 .nav-right {
   margin-left: auto;
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.nav-right-stack {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 160px;
+}
+
+.nav-right-stack .nav-link {
+  justify-content: flex-end;
 }
 
 .logo {
@@ -235,6 +263,243 @@ a:hover {
   object-fit: cover;
   border-radius: 12px;
   border: 1px solid var(--border);
+}
+
+.banner {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 22px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: var(--shadow);
+}
+
+.banner-text h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+
+.banner-text p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.search-row {
+  margin: 24px 0 18px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-row .input {
+  flex: 1 1 320px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 12px 30px rgba(32, 24, 12, 0.08);
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.table th {
+  font-size: 13px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: #faf7f1;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.property-cell {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.property-thumb {
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.property-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.property-meta .address {
+  font-weight: 600;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f0ebe2;
+  color: #3b3327;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.table-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.import-hero {
+  background: #102742;
+  color: #f8f5ef;
+  border-radius: 20px;
+  padding: 28px 28px;
+  box-shadow: 0 14px 30px rgba(12, 18, 30, 0.2);
+}
+
+.import-hero h1 {
+  margin: 0 0 8px;
+  font-size: 30px;
+}
+
+.import-hero p {
+  margin: 0;
+  color: rgba(248, 245, 239, 0.85);
+}
+
+.import-controls {
+  margin: 22px 0 18px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 160px 1fr auto;
+  align-items: center;
+}
+
+.import-controls .select,
+.import-controls .input {
+  background: #fff;
+}
+
+.import-section-title {
+  font-size: 22px;
+  margin: 24px 0 12px;
+}
+
+.import-card {
+  background: #fbfaf8;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px;
+}
+
+.import-table {
+  margin-top: 12px;
+}
+
+.import-detail {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.import-detail-layout {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  margin-top: 18px;
+}
+
+.import-hero-image {
+  width: 100%;
+  height: 320px;
+  object-fit: cover;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+}
+
+.thumbs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.thumbs img {
+  width: 96px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.form-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.form-grid .input[readonly] {
+  background: #f0ece4;
+  color: #6b6b6b;
+}
+
+.import-detail-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.import-images {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.import-images img {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+@media (max-width: 720px) {
+  .banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .import-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .import-detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .table {
+    display: block;
+    overflow-x: auto;
+  }
 }
 
 @media (max-width: 640px) {

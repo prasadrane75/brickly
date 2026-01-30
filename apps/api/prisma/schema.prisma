@@ -42,6 +42,13 @@ enum PropertyType {
   CONDO
 }
 
+enum SourceType {
+  OWNER
+  PUBLIC
+  PARTNER
+  MLS
+}
+
 enum SellOrderStatus {
   OPEN
   PARTIAL
@@ -89,6 +96,10 @@ model Property {
   state           String
   zip             String
   status          PropertyStatus
+  sourceType      SourceType?
+  sourceRefId     String?
+  importedAt      DateTime?
+  sourceAttribution String?
   squareFeet      Int?
   bedrooms        Int?
   bathrooms       Int?

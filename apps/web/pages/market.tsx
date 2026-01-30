@@ -61,27 +61,51 @@ export default function MarketPage() {
   }
 
   return (
-    <main>
-      <h1 className="section-title">Market</h1>
+    <main className="import-page">
+      <section className="import-header">
+        <h1>Market</h1>
+        <p>Browse available sell orders and buy shares.</p>
+      </section>
       {loading && <p>Loading sell orders...</p>}
       {message && (
         <p className={status === "error" ? "status-error" : "status-success"}>
           {message}
         </p>
       )}
-      {orders.map((order) => (
-        <SellOrderCard
-          key={order.id}
-          order={order}
-          onBuy={handleBuy}
-          canBuy={role !== "TENANT"}
-        />
-      ))}
+      <div className="import-card">
+        <table className="import-table">
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Shares</th>
+              <th>Ask Price</th>
+              <th className="action-cell">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order) => (
+              <SellOrderRow
+                key={order.id}
+                order={order}
+                onBuy={handleBuy}
+                canBuy={role !== "TENANT"}
+              />
+            ))}
+            {orders.length === 0 && !loading && (
+              <tr>
+                <td colSpan={4} className="muted">
+                  No sell orders available.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </main>
   );
 }
 
-function SellOrderCard({
+function SellOrderRow({
   order,
   onBuy,
   canBuy,
@@ -93,28 +117,39 @@ function SellOrderCard({
   const [sharesToBuy, setSharesToBuy] = useState(0);
 
   return (
-    <section className="card">
-      <h3>
-        {order.property.address1}, {order.property.city}
-      </h3>
-      <p>Shares for sale: {order.sharesForSale}</p>
-      <p>Ask price: {order.askPricePerShare}</p>
-      {canBuy ? (
-        <form onSubmit={(event) => onBuy(event, order.id, sharesToBuy)} className="form">
-          <input
-            className="input"
-            type="number"
-            min={1}
-            value={sharesToBuy}
-            onChange={(e) => setSharesToBuy(Number(e.target.value))}
-          />
-          <button type="submit" className="button">
-            Buy
-          </button>
-        </form>
-      ) : (
-        <p className="muted">Tenants cannot buy shares.</p>
-      )}
-    </section>
+    <tr>
+      <td>
+        <div className="property-meta">
+          <span className="address">{order.property.address1}</span>
+          <span className="muted">
+            {order.property.city}, {order.property.state}
+          </span>
+        </div>
+      </td>
+      <td>{order.sharesForSale}</td>
+      <td>{order.askPricePerShare}</td>
+      <td className="action-cell">
+        {canBuy ? (
+          <form
+            onSubmit={(event) => onBuy(event, order.id, sharesToBuy)}
+            className="import-actions"
+          >
+            <input
+              className="input"
+              type="number"
+              min={1}
+              value={sharesToBuy}
+              onChange={(e) => setSharesToBuy(Number(e.target.value))}
+              style={{ maxWidth: 120 }}
+            />
+            <button type="submit" className="import-primary">
+              Buy
+            </button>
+          </form>
+        ) : (
+          <span className="muted">Tenants cannot buy shares.</span>
+        )}
+      </td>
+    </tr>
   );
 }

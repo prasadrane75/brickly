@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { clearToken, getToken, getTokenPayload } from "../lib/api";
 import "../styles/globals.css";
+import "../styles/import.css";
 
 export default function App({ Component, pageProps }: AppProps) {
   const [hasToken, setHasToken] = useState(false);
@@ -33,28 +34,66 @@ export default function App({ Component, pageProps }: AppProps) {
       <nav className="nav">
         <Link href="/" className="logo">
           <img src="/brickylogo.png" alt="Brickly" />
-          <span>Brickly</span>
         </Link>
         <div className="nav-links">
-          <Link href="/properties">Properties</Link>
-          {role === "LISTER" && <Link href="/listings">My Listings</Link>}
-          {role === "LISTER" && <Link href="/listings/new">New Listing</Link>}
-          {role !== "ADMIN" && <Link href="/portfolio">Portfolio</Link>}
-          {role === "TENANT" && <Link href="/rentals">Rentals</Link>}
-          {role === "ADMIN" ? (
-            <>
-              <Link href="/admin/kyc">KYC Review</Link>
-              <Link href="/admin/rentals">Rentals Admin</Link>
-              <Link href="/admin/rental-applications">Rental Applications</Link>
-            </>
-          ) : (
-            hasToken && <Link href="/kyc">KYC</Link>
+          {role !== "TENANT" && (
+            <Link href="/properties" className="nav-link">
+              Properties
+            </Link>
           )}
-          <Link href="/market">Market</Link>
+          {role !== "TENANT" && (
+            <Link href="/portfolio" className="nav-link">
+              Portfolio
+            </Link>
+          )}
+          {role === "INVESTOR" && (
+            <Link href="/market" className="nav-link">
+              Market
+            </Link>
+          )}
+          {role === "TENANT" && (
+            <Link href="/rentals" className="nav-link">
+              Rentals
+            </Link>
+          )}
+          {role === "ADMIN" && (
+            <>
+              <Link href="/admin/kyc" className="nav-link">
+                KYC Review
+              </Link>
+              <Link href="/admin/rentals" className="nav-link">
+                Rentals Admin
+              </Link>
+              <Link href="/admin/rental-applications" className="nav-link">
+                Rental Applications
+              </Link>
+            </>
+          )}
+          {hasToken && role !== "ADMIN" && (
+            <Link href="/kyc" className="nav-link">
+              KYC
+            </Link>
+          )}
+          {role === "LISTER" && (
+            <>
+              <Link href="/listings" className="nav-link">
+                My Listings
+              </Link>
+              <Link href="/listings/new" className="nav-link">
+                New Listing
+              </Link>
+              <Link href="/lister/properties" className="nav-link">
+                Lister Properties
+              </Link>
+            </>
+          )}
         </div>
         {hasToken ? (
-          <div className="nav-right">
+          <div className="nav-right-stack">
             <span className="muted">Role: {role ?? "Unknown"}</span>
+            <Link href="/alerts" className="nav-link">
+              Alerts <span className="nav-badge">3</span>
+            </Link>
             <button className="button secondary" onClick={handleLogout}>
               Logout
             </button>

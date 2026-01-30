@@ -53,52 +53,57 @@ export default function RegisterPage() {
   }
 
   return (
-    <main>
-      <h1 className="section-title">Create account</h1>
-      <form onSubmit={handleSubmit} className="form">
-        <div>
-          <label className="label">Email (optional)</label>
-          <input
-            className="input"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="label">Phone (optional)</label>
-          <input
-            className="input"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="label">Password</label>
-          <input
-            className="input"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="label">Role</label>
-          <select
-            className="select"
-            value={role}
-            onChange={(e) => setRole(e.target.value as Role)}
-          >
-            {roles.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button type="submit" className="button" disabled={loading}>
-          {loading ? "Creating..." : "Create account"}
-        </button>
-      </form>
+    <main className="import-page">
+      <section className="import-header">
+        <h1>Create account</h1>
+        <p>Set up your profile to start investing or listing properties.</p>
+      </section>
+      <div className="import-card">
+        <form onSubmit={handleSubmit} className="form">
+          <div>
+            <label className="label">Email (optional)</label>
+            <input
+              className="input"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">Phone (optional)</label>
+            <input
+              className="input"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">Password</label>
+            <input
+              className="input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">Role</label>
+            <select
+              className="select"
+              value={role}
+              onChange={(e) => setRole(e.target.value as Role)}
+            >
+              {roles.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="submit" className="import-primary" disabled={loading}>
+            {loading ? "Creating..." : "Create account"}
+          </button>
+        </form>
+      </div>
       {message && (
         <p className={status === "error" ? "status-error" : "status-success"}>
           {message}

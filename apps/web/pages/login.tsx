@@ -29,30 +29,35 @@ export default function LoginPage() {
   }
 
   return (
-    <main>
-      <h1 className="section-title">Login</h1>
-      <form onSubmit={handleSubmit} className="form">
-        <div>
-          <label className="label">Email or phone</label>
-          <input
-            className="input"
-            value={emailOrPhone}
-            onChange={(e) => setEmailOrPhone(e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="label">Password</label>
-          <input
-            className="input"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        <button type="submit" className="button" disabled={loading}>
-          {loading ? "Logging in..." : "Login"}
-        </button>
-      </form>
+    <main className="import-page">
+      <section className="import-header">
+        <h1>Login</h1>
+        <p>Access your Brickly dashboard.</p>
+      </section>
+      <div className="import-card">
+        <form onSubmit={handleSubmit} className="form">
+          <div>
+            <label className="label">Email or phone</label>
+            <input
+              className="input"
+              value={emailOrPhone}
+              onChange={(e) => setEmailOrPhone(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">Password</label>
+            <input
+              className="input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <button type="submit" className="import-primary" disabled={loading}>
+            {loading ? "Logging in..." : "Login"}
+          </button>
+        </form>
+      </div>
       {message && <p className="status-error">{message}</p>}
     </main>
   );

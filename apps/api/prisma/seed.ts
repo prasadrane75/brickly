@@ -49,6 +49,28 @@ async function main() {
     },
   });
 
+  const portlandPasswordHash = await bcrypt.hash("portland-password", 12);
+  const portlandLister = await prisma.user.upsert({
+    where: { email: "portland@outlook.com" },
+    update: {},
+    create: {
+      email: "portland@outlook.com",
+      passwordHash: portlandPasswordHash,
+      role: UserRole.LISTER,
+    },
+  });
+
+  const tampaPasswordHash = await bcrypt.hash("tampa-password", 12);
+  const tampaLister = await prisma.user.upsert({
+    where: { email: "tampa@outlook.com" },
+    update: {},
+    create: {
+      email: "tampa@outlook.com",
+      passwordHash: tampaPasswordHash,
+      role: UserRole.LISTER,
+    },
+  });
+
   async function createListing(input: {
     property: {
       address1: string;
@@ -84,7 +106,12 @@ async function main() {
       const listing = await tx.listing.create({
         data: {
           propertyId: property.id,
-          listerUserId: admin.id,
+          listerUserId:
+            input.property.city === "Portland"
+              ? portlandLister.id
+              : input.property.city === "Tampa"
+              ? tampaLister.id
+              : admin.id,
           bonusPercent: input.listing.bonusPercent,
           askingPrice: input.listing.askingPrice,
           status: ListingStatus.LISTED,

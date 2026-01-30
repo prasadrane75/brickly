@@ -61,22 +61,50 @@ export default function PortfolioPage() {
   }
 
   return (
-    <main>
-      <h1 className="section-title">Portfolio</h1>
+    <main className="import-page">
+      <section className="import-header">
+        <h1>Portfolio</h1>
+        <p>Track your holdings and create sell orders.</p>
+      </section>
       {loading && <p>Loading portfolio...</p>}
       {message && (
         <p className={status === "error" ? "status-error" : "status-success"}>
           {message}
         </p>
       )}
-      {holdings.map((holding) => (
-        <HoldingCard key={holding.id} holding={holding} onSell={handleSell} />
-      ))}
+      <div className="import-card">
+        <table className="import-table">
+          <thead>
+            <tr>
+              <th>Property</th>
+              <th>Shares Owned</th>
+              <th>Ownership</th>
+              <th className="action-cell">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {holdings.map((holding) => (
+              <HoldingRow
+                key={holding.id}
+                holding={holding}
+                onSell={handleSell}
+              />
+            ))}
+            {holdings.length === 0 && !loading && (
+              <tr>
+                <td colSpan={4} className="muted">
+                  No holdings yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </main>
   );
 }
 
-function HoldingCard({
+function HoldingRow({
   holding,
   onSell,
 }: {
@@ -90,45 +118,78 @@ function HoldingCard({
 }) {
   const [sharesForSale, setSharesForSale] = useState(0);
   const [askPrice, setAskPrice] = useState(0);
+  const [isSelling, setIsSelling] = useState(false);
 
   return (
-    <section className="card">
-      <h3>
-        {holding.property.address1}, {holding.property.city}
-      </h3>
-      <p>
-        Shares owned: {holding.sharesOwned} ({(holding.percent * 100).toFixed(2)}%)
-      </p>
-      <form
-        onSubmit={(event) =>
-          onSell(event, holding.property.id, sharesForSale, askPrice)
-        }
-        className="form"
-      >
-        <div>
-          <label className="label">Shares to sell</label>
-          <input
-            className="input"
-            type="number"
-            min={1}
-            value={sharesForSale}
-            onChange={(e) => setSharesForSale(Number(e.target.value))}
-          />
-        </div>
-        <div>
-          <label className="label">Ask price per share</label>
-          <input
-            className="input"
-            type="number"
-            min={0}
-            value={askPrice}
-            onChange={(e) => setAskPrice(Number(e.target.value))}
-          />
-        </div>
-        <button type="submit" className="button">
-          Create Sell Order
-        </button>
-      </form>
-    </section>
+    <>
+      <tr>
+        <td>
+          <div className="property-meta">
+            <span className="address">{holding.property.address1}</span>
+            <span className="muted">
+              {holding.property.city}, {holding.property.state} {holding.property.zip}
+            </span>
+          </div>
+        </td>
+        <td>{holding.sharesOwned}</td>
+        <td>{(holding.percent * 100).toFixed(2)}%</td>
+        <td className="action-cell">
+          <div className="import-actions">
+            <button
+              className="import-primary"
+              type="button"
+              onClick={() => setIsSelling((prev) => !prev)}
+            >
+              {isSelling ? "Close" : "Sell"}
+            </button>
+          </div>
+        </td>
+      </tr>
+      {isSelling && (
+        <tr>
+          <td colSpan={4}>
+            <form
+              onSubmit={(event) =>
+                onSell(event, holding.property.id, sharesForSale, askPrice)
+              }
+              className="form"
+            >
+              <div>
+                <label className="label">Shares to sell</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  value={sharesForSale}
+                  onChange={(e) => setSharesForSale(Number(e.target.value))}
+                />
+              </div>
+              <div>
+                <label className="label">Ask price per share</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={0}
+                  value={askPrice}
+                  onChange={(e) => setAskPrice(Number(e.target.value))}
+                />
+              </div>
+              <div className="button-row">
+                <button type="submit" className="import-primary">
+                  Create Sell Order
+                </button>
+                <button
+                  type="button"
+                  className="import-secondary"
+                  onClick={() => setIsSelling(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
