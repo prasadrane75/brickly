@@ -1,7 +1,12 @@
 import type express from "express";
-import { PrismaClient, PropertyStatus, ListingStatus, PropertyType, SourceType } from "@prisma/client";
+import {
+  PrismaClient,
+  PropertyStatus,
+  ListingStatus,
+  PropertyType,
+  SourceType,
+} from "@prisma/client";
 import { z } from "zod";
-import { mockListings } from "./mockListings.js";
 
 if (!process.env.DATABASE_URL) {
   process.env.DATABASE_URL = "postgres://app:app@localhost:5433/fractional";
@@ -56,11 +61,6 @@ function sendError(
   return res.status(status).json({ error: { code, message } });
 }
 
-function matchesSource(id: string, source: "PUBLIC" | "PARTNER") {
-  if (source === "PUBLIC") return id.startsWith("pub-");
-  return id.startsWith("partner-");
-}
-
 export function listImports(req: express.Request, res: express.Response) {
   const parsed = searchSchema.safeParse({
     source: req.query.source,
@@ -72,30 +72,44 @@ export function listImports(req: express.Request, res: express.Response) {
   }
 
   const { source, q } = parsed.data;
-  const term = q?.toString().trim().toLowerCase() || "";
+  const term = q?.toString().trim() || "";
 
-  const results = mockListings
-    .filter((listing) => matchesSource(listing.id, source))
-    .filter((listing) => {
-      if (!term) return true;
-      const haystack = `${listing.address} ${listing.city} ${listing.zip}`.toLowerCase();
-      return haystack.includes(term);
+  const sourceType = source === "PUBLIC" ? SourceType.PUBLIC : SourceType.PARTNER;
+
+  return prisma.mLSListing
+    .findMany({
+      where: {
+        sourceType,
+        OR: term
+          ? [
+              { address: { contains: term, mode: "insensitive" } },
+              { city: { contains: term, mode: "insensitive" } },
+              { zip: { contains: term, mode: "insensitive" } },
+            ]
+          : undefined,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
     })
-    .slice(0, 10)
-    .map((listing) => ({
-      externalId: listing.id,
-      addressLine: listing.address,
-      city: listing.city,
-      state: listing.state,
-      zip: listing.zip,
-      listPrice: listing.listPrice,
-      beds: listing.beds,
-      baths: listing.baths,
-      thumbUrl: listing.thumbUrl,
-      status: listing.status,
-    }));
-
-  return res.json(results);
+    .then((listings) =>
+      res.json(
+        listings.map((listing) => ({
+          externalId: listing.externalId,
+          addressLine: listing.address,
+          city: listing.city,
+          state: listing.state,
+          zip: listing.zip,
+          listPrice: Number(listing.listPrice),
+          beds: listing.beds,
+          baths: Number(listing.baths),
+          thumbUrl: listing.thumbUrl,
+          status: listing.status,
+        }))
+      )
+    )
+    .catch(() =>
+      sendError(res, 500, "INTERNAL_ERROR", "Failed to load listings")
+    );
 }
 
 export function getImportDetail(req: express.Request, res: express.Response) {
@@ -104,34 +118,43 @@ export function getImportDetail(req: express.Request, res: express.Response) {
     return sendError(res, 400, "VALIDATION_ERROR", "Invalid source");
   }
 
-  const listing = mockListings.find((item) => item.id === req.params.externalId);
-  if (!listing || !matchesSource(listing.id, source)) {
-    return sendError(res, 404, "NOT_FOUND", "Listing not found");
-  }
+  const sourceType = source === "PUBLIC" ? SourceType.PUBLIC : SourceType.PARTNER;
 
-  return res.json({
-    externalId: listing.id,
-    address: {
-      line1: listing.address,
-      city: listing.city,
-      state: listing.state,
-      zip: listing.zip,
-    },
-    facts: {
-      beds: listing.beds,
-      baths: listing.baths,
-      sqft: listing.sqft,
-      yearBuilt: listing.yearBuilt,
-    },
-    pricing: {
-      listPrice: listing.listPrice,
-      rentEstimate: listing.rentEstimate,
-    },
-    images: listing.images,
-    thumbUrl: listing.thumbUrl,
-    status: listing.status,
-    attribution: listing.attribution,
-  });
+  return prisma.mLSListing
+    .findFirst({
+      where: { externalId: req.params.externalId, sourceType },
+    })
+    .then((listing) => {
+      if (!listing) {
+        return sendError(res, 404, "NOT_FOUND", "Listing not found");
+      }
+      return res.json({
+        externalId: listing.externalId,
+        address: {
+          line1: listing.address,
+          city: listing.city,
+          state: listing.state,
+          zip: listing.zip,
+        },
+        facts: {
+          beds: listing.beds,
+          baths: Number(listing.baths),
+          sqft: listing.sqft,
+          yearBuilt: listing.yearBuilt,
+        },
+        pricing: {
+          listPrice: Number(listing.listPrice),
+          rentEstimate: Number(listing.rentEstimate),
+        },
+        images: listing.images,
+        thumbUrl: listing.thumbUrl,
+        status: listing.status,
+        attribution: listing.attribution,
+      });
+    })
+    .catch(() =>
+      sendError(res, 500, "INTERNAL_ERROR", "Failed to load listing")
+    );
 }
 
 export async function confirmImport(req: express.Request, res: express.Response) {

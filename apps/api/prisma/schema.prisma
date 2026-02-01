@@ -140,6 +140,31 @@ model RentalApplication {
   @@index([status])
 }
 
+model MLSListing {
+  id            String   @id @default(uuid()) @db.Uuid
+  externalId    String   @unique
+  sourceType    SourceType
+  address       String
+  city          String
+  state         String
+  zip           String
+  listPrice     Decimal  @db.Decimal(14, 2)
+  rentEstimate  Decimal  @db.Decimal(14, 2)
+  beds          Int
+  baths         Decimal  @db.Decimal(4, 1)
+  sqft          Int
+  yearBuilt     Int
+  images        String[]
+  thumbUrl      String
+  status        String
+  attribution   String
+  createdAt     DateTime @default(now())
+
+  @@index([sourceType])
+  @@index([city, state])
+  @@index([externalId])
+}
+
 model Listing {
   id            String        @id @default(uuid()) @db.Uuid
   propertyId    String        @db.Uuid

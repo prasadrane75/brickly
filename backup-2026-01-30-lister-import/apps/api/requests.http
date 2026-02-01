@@ -1,0 +1,165 @@
+@baseUrl = http://localhost:4000
+@token = {{login.response.body.$.token}}
+
+### Health
+GET {{baseUrl}}/health
+
+### Register admin or investor
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "admin@fractional.app",
+  "password": "admin-password",
+  "role": "ADMIN"
+}
+
+### Login
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "emailOrPhone": "admin@fractional.app",
+  "password": "admin-password"
+}
+
+### List properties
+GET {{baseUrl}}/properties
+
+### Property detail (replace id)
+GET {{baseUrl}}/properties/{{propertyId}}
+
+### Create listing (ADMIN/LISTER only)
+POST {{baseUrl}}/listings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "property": {
+    "address1": "12 Ocean Ave",
+    "city": "Miami",
+    "state": "FL",
+    "zip": "33101",
+    "targetRaise": 1500000,
+    "estMonthlyRent": 7000
+  },
+  "listing": {
+    "askingPrice": 1750000,
+    "bonusPercent": 2.5
+  },
+  "shareClass": {
+    "totalShares": 10000,
+    "referencePricePerShare": 175
+  },
+  "images": [
+    "https://images.unsplash.com/photo-1568605114967-8130f3a36994"
+  ]
+}
+
+### Buy shares (requires KYC approved)
+POST {{baseUrl}}/invest/buy
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "propertyId": "{{propertyId}}",
+  "sharesToBuy": 10
+}
+
+### Portfolio (requires auth)
+GET {{baseUrl}}/portfolio
+Authorization: Bearer {{token}}
+
+### Create sell order (requires KYC approved)
+POST {{baseUrl}}/market/sell-orders
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "propertyId": "{{propertyId}}",
+  "sharesForSale": 5,
+  "askPricePerShare": 200
+}
+
+### List open sell orders
+GET {{baseUrl}}/market/sell-orders
+
+### Buy from market (requires KYC approved)
+POST {{baseUrl}}/market/buy
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "sellOrderId": "{{sellOrderId}}",
+  "sharesToBuy": 2
+}
+
+### KYC submit (auth required)
+POST {{baseUrl}}/kyc/submit
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "data": {
+    "fullName": "Alex Investor",
+    "country": "US"
+  }
+}
+
+### KYC submissions (admin only)
+GET {{baseUrl}}/kyc/submissions
+Authorization: Bearer {{token}}
+
+### KYC approve (admin only)
+POST {{baseUrl}}/kyc/approve
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}"
+}
+
+### KYC reject (admin only)
+POST {{baseUrl}}/kyc/reject
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}"
+}
+
+### Rentals list
+GET {{baseUrl}}/rentals
+
+### Rental apply (tenant only)
+POST {{baseUrl}}/rentals/apply
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "propertyId": "{{propertyId}}"
+}
+
+### Rental applications (admin only)
+GET {{baseUrl}}/admin/rental-applications
+Authorization: Bearer {{token}}
+
+### Approve rental application (admin only)
+POST {{baseUrl}}/admin/rental-applications/approve
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "applicationId": "{{applicationId}}",
+  "rentAmount": 2100
+}
+
+### Reject rental application (admin only)
+POST {{baseUrl}}/admin/rental-applications/reject
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "applicationId": "{{applicationId}}"
+}

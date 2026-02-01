@@ -67,6 +67,9 @@ export default function App({ Component, pageProps }: AppProps) {
               <Link href="/admin/rental-applications" className="nav-link">
                 Rental Applications
               </Link>
+              <Link href="/admin/mls-listings" className="nav-link">
+                MLS Listings
+              </Link>
             </>
           )}
           {hasToken && role !== "ADMIN" && (

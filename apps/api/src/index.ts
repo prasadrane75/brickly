@@ -13,10 +13,12 @@ import {
   SellOrderStatus,
   RentalApplicationStatus,
   PropertyType,
+  SourceType,
 } from "@prisma/client";
 import { z } from "zod";
 import importRoutes from "./import/import.routes.js";
 import { requireAuth, requireKycApproved } from "./middleware/auth.js";
+import { seedMLSListings } from "./import/import.seed.js";
 
 declare global {
   namespace Express {
@@ -958,6 +960,76 @@ app.post("/kyc/submit", requireAuth, async (req, res) => {
 
   return res.json(profile);
 });
+
+app.get(
+  "/admin/mls-listings",
+  requireAuth,
+  requireRole([UserRole.ADMIN]),
+  async (req, res) => {
+    const source = req.query.source;
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const sourceType =
+      source === "PARTNER" ? SourceType.PARTNER : SourceType.PUBLIC;
+
+    const listings = await prisma.mLSListing.findMany({
+      where: {
+        sourceType,
+        OR: q
+          ? [
+              { address: { contains: q, mode: "insensitive" } },
+              { city: { contains: q, mode: "insensitive" } },
+              { zip: { contains: q, mode: "insensitive" } },
+            ]
+          : undefined,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+
+    return res.json(
+      listings.map((listing) => ({
+        externalId: listing.externalId,
+        address: listing.address,
+        city: listing.city,
+        state: listing.state,
+        zip: listing.zip,
+        listPrice: Number(listing.listPrice),
+        status: listing.status,
+        sourceType: listing.sourceType,
+        thumbUrl: listing.thumbUrl,
+      }))
+    );
+  }
+);
+
+app.post(
+  "/admin/mls-listings/seed",
+  requireAuth,
+  requireRole([UserRole.ADMIN]),
+  async (_req, res) => {
+    try {
+      await prisma.mLSListing.deleteMany();
+      const count = await seedMLSListings(prisma);
+      return res.json({ count });
+    } catch {
+      return sendError(res, 500, "INTERNAL_ERROR", "Failed to seed MLS listings");
+    }
+  }
+);
+
+app.post(
+  "/admin/mls-listings/clear",
+  requireAuth,
+  requireRole([UserRole.ADMIN]),
+  async (_req, res) => {
+    try {
+      const result = await prisma.mLSListing.deleteMany();
+      return res.json({ count: result.count });
+    } catch {
+      return sendError(res, 500, "INTERNAL_ERROR", "Failed to clear MLS listings");
+    }
+  }
+);
 
 app.get("/kyc/submissions", requireAuth, requireRole([UserRole.ADMIN]), async (_req, res) => {
   const submissions = await prisma.kycProfile.findMany({
