@@ -1,5 +1,7 @@
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000";
+  typeof window === "undefined"
+    ? process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4000"
+    : "/api";
 
 export function getToken() {
   if (typeof window === "undefined") return null;
@@ -57,6 +59,14 @@ export async function apiFetch<T>(
 
   if (!res.ok) {
     const text = await res.text();
+    try {
+      const data = JSON.parse(text) as { error?: { message?: string } };
+      if (data?.error?.message) {
+        throw new Error(data.error.message);
+      }
+    } catch {
+      // ignore parse errors
+    }
     throw new Error(text || `Request failed: ${res.status}`);
   }
 

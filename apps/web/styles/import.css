@@ -71,6 +71,8 @@
 .import-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .import-primary {
@@ -155,5 +157,29 @@
 @media (max-width: 720px) {
   .import-search-row {
     grid-template-columns: 1fr;
+  }
+
+  .import-card {
+    padding: 16px;
+  }
+
+  .import-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .import-table th,
+  .import-table td {
+    padding: 12px 12px;
+  }
+
+  .property-cell {
+    align-items: flex-start;
+  }
+
+  .property-thumb {
+    width: 52px;
+    height: 40px;
   }
 }

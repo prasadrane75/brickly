@@ -1,10 +1,10 @@
 -- Seed data aligned with Prisma schema.
-INSERT INTO "User" ("id", "email", "passwordHash", "role")
+INSERT INTO "User" ("id", "email", "passwordHash", "role", "emailVerified")
 VALUES
-  ('11111111-1111-1111-1111-111111111111', 'admin@fractional.app', '$2b$12$0fPgGwic3PNDrvUwWyInn.FjfgKuycnAlakqrna8JY5Nc9aNcNGQK', 'ADMIN'),
-  ('22222222-2222-2222-2222-222222222222', 'investor@fractional.app', '$2b$12$Ujc2atwcbG7SsS9zcBZdveTLo7YoCTYzIqo0.8alFwFKCaTTQ7ia.', 'INVESTOR'),
-  ('33333333-3333-3333-3333-333333333333', 'portland@outlook.com', 'seed-placeholder', 'LISTER'),
-  ('44444444-4444-4444-4444-444444444444', 'tampa@outlook.com', 'seed-placeholder', 'LISTER');
+  ('11111111-1111-1111-1111-111111111111', 'admin@fractional.app', '$2b$12$0fPgGwic3PNDrvUwWyInn.FjfgKuycnAlakqrna8JY5Nc9aNcNGQK', 'ADMIN', true),
+  ('22222222-2222-2222-2222-222222222222', 'investor@fractional.app', '$2b$12$Ujc2atwcbG7SsS9zcBZdveTLo7YoCTYzIqo0.8alFwFKCaTTQ7ia.', 'INVESTOR', true),
+  ('33333333-3333-3333-3333-333333333333', 'portland@outlook.com', 'seed-placeholder', 'LISTER', true),
+  ('44444444-4444-4444-4444-444444444444', 'tampa@outlook.com', 'seed-placeholder', 'LISTER', true);
 
 INSERT INTO "KycProfile" ("id", "userId", "status", "data", "submittedAt")
 VALUES

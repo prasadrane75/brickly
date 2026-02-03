@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/router";
-import { apiFetch, setToken } from "../lib/api";
+import { apiFetch } from "../lib/api";
 
 const roles = ["INVESTOR", "LISTER", "TENANT"] as const;
 
@@ -9,7 +9,6 @@ type Role = (typeof roles)[number];
 export default function RegisterPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<Role>("INVESTOR");
   const [message, setMessage] = useState<string | null>(null);
@@ -22,28 +21,19 @@ export default function RegisterPage() {
     setMessage(null);
     setStatus("idle");
 
-    const payload: {
-      email?: string;
-      phone?: string;
-      password: string;
-      role: Role;
-    } = {
+    const payload = {
+      email,
       password,
       role,
     };
 
-    if (email) payload.email = email;
-    if (phone) payload.phone = phone;
-
     try {
-      const data = await apiFetch<{ token: string }>("/auth/register", {
+      await apiFetch<{ message: string }>("/auth/register", {
         method: "POST",
         body: JSON.stringify(payload),
       });
-      setToken(data.token);
-      setMessage("Account created.");
+      setMessage("Account created. Check your email to verify.");
       setStatus("success");
-      await router.push("/properties");
     } catch (error: any) {
       setMessage(error.message || "Registration failed.");
       setStatus("error");
@@ -61,19 +51,12 @@ export default function RegisterPage() {
       <div className="import-card">
         <form onSubmit={handleSubmit} className="form">
           <div>
-            <label className="label">Email (optional)</label>
+            <label className="label">Email</label>
             <input
               className="input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="label">Phone (optional)</label>
-            <input
-              className="input"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              required
             />
           </div>
           <div>
@@ -83,6 +66,7 @@ export default function RegisterPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required
             />
           </div>
           <div>

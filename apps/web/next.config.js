@@ -1,8 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async rewrites() {
-    const inDocker = process.env.IN_DOCKER === "true";
-    const apiBase = inDocker ? "http://api:4000" : "http://localhost:4000";
+    const apiBase =
+      process.env.NEXT_PUBLIC_API_BASE_URL ||
+      (process.env.IN_DOCKER === "true"
+        ? "http://api:4000"
+        : "http://localhost:4000");
     return [
       {
         source: "/api/:path*",
@@ -13,3 +16,4 @@ const nextConfig = {
 };
 
 module.exports = nextConfig;
+

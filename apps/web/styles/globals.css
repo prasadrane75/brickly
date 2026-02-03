@@ -134,6 +134,25 @@ a:hover {
     height: 40px;
     max-width: 120px;
   }
+
+  .nav-links {
+    width: 100%;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+
+  .nav-right-stack {
+    width: 100%;
+    align-items: flex-start;
+  }
+
+  .nav-right-stack .nav-link {
+    justify-content: flex-start;
+  }
+
+  .container {
+    padding: 20px 14px 48px;
+  }
 }
 
 .main {
@@ -505,5 +524,12 @@ a:hover {
 @media (max-width: 640px) {
   .nav {
     position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  body {
+    background-size: cover, 120px, 200px;
+    background-position: center, top left, top right;
   }
 }

@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import cors from "cors";
 import express from "express";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import {
   Prisma,
   PrismaClient,
@@ -19,6 +20,7 @@ import { z } from "zod";
 import importRoutes from "./import/import.routes.js";
 import { requireAuth, requireKycApproved } from "./middleware/auth.js";
 import { seedMLSListings } from "./import/import.seed.js";
+import { sendVerificationEmail } from "./email.js";
 
 declare global {
   namespace Express {
@@ -61,17 +63,11 @@ app.options("*", cors());
 app.use(express.json());
 app.use("/import", importRoutes);
 
-const registerSchema = z
-  .object({
-    email: z.string().email().optional(),
-    phone: z.string().min(7).optional(),
-    password: z.string().min(8),
-    role: z.nativeEnum(UserRole),
-  })
-  .refine((data) => data.email || data.phone, {
-    message: "Email or phone is required",
-    path: ["email"],
-  });
+const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  role: z.nativeEnum(UserRole),
+});
 
 const loginSchema = z.object({
   emailOrPhone: z.string().min(3),
@@ -209,16 +205,16 @@ app.post("/auth/register", async (req, res) => {
     return sendError(res, 400, "VALIDATION_ERROR", message);
   }
 
-  const { email, phone, password, role } = parsed.data;
+  const { email, password, role } = parsed.data;
   const passwordHash = await bcrypt.hash(password, 12);
 
   try {
     const user = await prisma.user.create({
       data: {
         email,
-        phone,
         passwordHash,
         role,
+        emailVerified: false,
         kycProfile: {
           create: {
             status: KycStatus.PENDING,
@@ -227,14 +223,47 @@ app.post("/auth/register", async (req, res) => {
           },
         },
       },
-      select: { id: true, role: true },
+      select: { id: true, role: true, email: true },
     });
 
-    const token = signToken({ id: user.id, role: user.role });
-    return res.status(201).json({ token });
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24);
+    await prisma.verificationToken.create({
+      data: {
+        userId: user.id,
+        token,
+        expiresAt,
+      },
+    });
+
+    const webBase = process.env.WEB_BASE_URL || "http://localhost:3000";
+    const verifyUrl = `${webBase}/verify?token=${token}`;
+    try {
+      await sendVerificationEmail(user.email!, verifyUrl);
+      return res
+        .status(201)
+        .json({ message: "Registration successful. Verify your email." });
+    } catch (error: any) {
+      console.error("Email send failed:", error);
+      const allowDevBypass = process.env.ALLOW_EMAIL_BYPASS === "true";
+      if (allowDevBypass) {
+        return res.status(201).json({
+          message:
+            "Email service unavailable. Use the verification link to continue.",
+          verifyUrl,
+        });
+      }
+      return sendError(
+        res,
+        500,
+        "EMAIL_SEND_FAILED",
+        error?.message || "Failed to send verification email"
+      );
+    }
   } catch (error: any) {
+    console.error("Register error:", error);
     if (error?.code === "P2002") {
-      return sendError(res, 400, "CONFLICT", "Email or phone already in use");
+      return sendError(res, 400, "CONFLICT", "Email already in use");
     }
     return sendError(res, 500, "INTERNAL_ERROR", "Failed to register user");
   }
@@ -252,7 +281,7 @@ app.post("/auth/login", async (req, res) => {
     where: {
       OR: [{ email: emailOrPhone }, { phone: emailOrPhone }],
     },
-    select: { id: true, role: true, passwordHash: true },
+    select: { id: true, role: true, passwordHash: true, email: true, emailVerified: true },
   });
 
   if (!user) {
@@ -264,8 +293,39 @@ app.post("/auth/login", async (req, res) => {
     return sendError(res, 401, "INVALID_CREDENTIALS", "Invalid credentials");
   }
 
+  if (user.email && !user.emailVerified) {
+    return sendError(
+      res,
+      403,
+      "EMAIL_NOT_VERIFIED",
+      "Please verify your email to continue"
+    );
+  }
+
   const token = signToken({ id: user.id, role: user.role });
   return res.json({ token });
+});
+
+app.get("/auth/verify", async (req, res) => {
+  const token = typeof req.query.token === "string" ? req.query.token : "";
+  if (!token) {
+    return sendError(res, 400, "VALIDATION_ERROR", "Missing token");
+  }
+
+  const record = await prisma.verificationToken.findUnique({
+    where: { token },
+  });
+  if (!record || record.expiresAt < new Date()) {
+    return sendError(res, 400, "INVALID_TOKEN", "Invalid or expired token");
+  }
+
+  await prisma.user.update({
+    where: { id: record.userId },
+    data: { emailVerified: true },
+  });
+  await prisma.verificationToken.delete({ where: { token } });
+
+  return res.json({ ok: true });
 });
 
 app.get("/properties", async (_req, res) => {

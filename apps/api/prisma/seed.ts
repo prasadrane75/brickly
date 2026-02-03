@@ -17,11 +17,12 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { email: "admin@fractional.app" },
-    update: {},
+    update: { emailVerified: true },
     create: {
       email: "admin@fractional.app",
       passwordHash: adminPasswordHash,
       role: UserRole.ADMIN,
+      emailVerified: true,
       kycProfile: {
         create: {
           status: KycStatus.APPROVED,
@@ -34,11 +35,12 @@ async function main() {
 
   const investor = await prisma.user.upsert({
     where: { email: "investor@fractional.app" },
-    update: {},
+    update: { emailVerified: true },
     create: {
       email: "investor@fractional.app",
       passwordHash: investorPasswordHash,
       role: UserRole.INVESTOR,
+      emailVerified: true,
       kycProfile: {
         create: {
           status: KycStatus.APPROVED,
@@ -52,22 +54,24 @@ async function main() {
   const portlandPasswordHash = await bcrypt.hash("portland-password", 12);
   const portlandLister = await prisma.user.upsert({
     where: { email: "portland@outlook.com" },
-    update: {},
+    update: { emailVerified: true },
     create: {
       email: "portland@outlook.com",
       passwordHash: portlandPasswordHash,
       role: UserRole.LISTER,
+      emailVerified: true,
     },
   });
 
   const tampaPasswordHash = await bcrypt.hash("tampa-password", 12);
   const tampaLister = await prisma.user.upsert({
     where: { email: "tampa@outlook.com" },
-    update: {},
+    update: { emailVerified: true },
     create: {
       email: "tampa@outlook.com",
       passwordHash: tampaPasswordHash,
       role: UserRole.LISTER,
+      emailVerified: true,
     },
   });
 

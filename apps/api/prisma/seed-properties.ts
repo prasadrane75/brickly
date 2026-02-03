@@ -67,8 +67,14 @@ async function main() {
         email: adminEmail,
         passwordHash: "seed-placeholder",
         role: "ADMIN",
+        emailVerified: true,
       },
     }));
+
+  await prisma.user.update({
+    where: { id: admin.id },
+    data: { emailVerified: true },
+  });
 
   await prisma.kycProfile.upsert({
     where: { userId: admin.id },
@@ -89,8 +95,14 @@ async function main() {
         email: investorEmail,
         passwordHash: "seed-placeholder",
         role: "INVESTOR",
+        emailVerified: true,
       },
     }));
+
+  await prisma.user.update({
+    where: { id: investor.id },
+    data: { emailVerified: true },
+  });
 
   await prisma.kycProfile.upsert({
     where: { userId: investor.id },
@@ -111,8 +123,14 @@ async function main() {
         email: portlandEmail,
         passwordHash: "seed-placeholder",
         role: "LISTER",
+        emailVerified: true,
       },
     }));
+
+  await prisma.user.update({
+    where: { id: portlandLister.id },
+    data: { emailVerified: true },
+  });
 
   const tampaEmail = "tampa@outlook.com";
   const tampaLister =
@@ -122,8 +140,14 @@ async function main() {
         email: tampaEmail,
         passwordHash: "seed-placeholder",
         role: "LISTER",
+        emailVerified: true,
       },
     }));
+
+  await prisma.user.update({
+    where: { id: tampaLister.id },
+    data: { emailVerified: true },
+  });
 
   const count = Number(process.env.SEED_COUNT || "100");
   const records = Array.from({ length: count }, (_, index) => index + 1);
