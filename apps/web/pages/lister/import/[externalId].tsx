@@ -180,82 +180,96 @@ export default function ImportDetailPage() {
       {detail && (
         <div className="import-detail-layout">
           <div className="import-card">
+            <div className="import-detail-summary">
+              <div>
+                <span className="import-pill">
+                  {source === "PUBLIC" ? "MLS-Linked" : source}{" "}
+                  {source === "PUBLIC" ? "(Public Data)" : "(Partner Feed)"}
+                </span>
+              </div>
+            </div>
             <img
               className="import-hero-image"
               src={detail.thumbUrl || detail.images[0]}
               alt={detail.address.line1}
             />
-            <h2 className="import-section-title">{detail.address.line1}</h2>
-            <p className="muted">
-              {detail.address.city}, {detail.address.state} {detail.address.zip}
-            </p>
-            <div className="import-thumbs">
-              {detail.images.map((url) => (
-                <img key={url} src={url} alt={detail.address.line1} />
-              ))}
+            <div className="import-card-body">
+              <h2 className="import-section-title">{detail.address.line1}</h2>
+              <p className="muted">
+                {detail.address.city}, {detail.address.state} {detail.address.zip}
+              </p>
+              <div className="import-thumbs">
+                {detail.images.map((url) => (
+                  <img key={url} src={url} alt={detail.address.line1} />
+                ))}
+              </div>
             </div>
           </div>
 
           <form className="import-card import-form" onSubmit={handleCreateListing}>
-            <h2 className="import-section-title">Create Listing</h2>
-            <div>
-              <label className="label">Estimated Value</label>
-              <input
-                className="input"
-                type="number"
-                value={listPrice}
-                onChange={(event) => setListPrice(Number(event.target.value))}
-              />
+            <h2 className="import-section-title">Import Property Details</h2>
+            <div className="import-key-values">
+              <div className="import-key-row">
+                <span>Estimated Value</span>
+                <input
+                  className="input compact"
+                  type="number"
+                  value={listPrice}
+                  onChange={(event) => setListPrice(Number(event.target.value))}
+                />
+              </div>
+              <div className="import-key-row">
+                <span>Estimated Rent</span>
+                <input
+                  className="input compact"
+                  type="number"
+                  value={rentEstimate}
+                  onChange={(event) => setRentEstimate(Number(event.target.value))}
+                />
+              </div>
             </div>
-            <div>
-              <label className="label">Estimated Rent</label>
-              <input
-                className="input"
-                type="number"
-                value={rentEstimate}
-                onChange={(event) => setRentEstimate(Number(event.target.value))}
-              />
+            <hr className="import-divider" />
+            <div className="import-key-values">
+              <div className="import-key-row">
+                <span>Commission Bonus</span>
+                <input
+                  className="input compact"
+                  type="number"
+                  step="0.1"
+                  value={bonusPercent}
+                  onChange={(event) => setBonusPercent(Number(event.target.value))}
+                />
+              </div>
+              <div className="import-key-row">
+                <span>Target Raise</span>
+                <input
+                  className="input compact"
+                  type="number"
+                  value={targetRaise}
+                  onChange={(event) => setTargetRaise(Number(event.target.value))}
+                />
+              </div>
+              <div className="import-key-row">
+                <span>Total Shares</span>
+                <input
+                  className="input compact"
+                  type="number"
+                  value={totalShares}
+                  onChange={(event) => setTotalShares(Number(event.target.value))}
+                />
+              </div>
+              <div className="import-key-row">
+                <span>Reference Price / Share</span>
+                <input className="input compact" readOnly value={referencePrice} />
+              </div>
             </div>
-            <div>
-              <label className="label">Commission Bonus</label>
-              <input
-                className="input"
-                type="number"
-                step="0.1"
-                value={bonusPercent}
-                onChange={(event) => setBonusPercent(Number(event.target.value))}
-              />
-            </div>
-            <div>
-              <label className="label">Target Raise</label>
-              <input
-                className="input"
-                type="number"
-                value={targetRaise}
-                onChange={(event) => setTargetRaise(Number(event.target.value))}
-              />
-            </div>
-            <div>
-              <label className="label">Total Shares</label>
-              <input
-                className="input"
-                type="number"
-                value={totalShares}
-                onChange={(event) => setTotalShares(Number(event.target.value))}
-              />
-            </div>
-            <div>
-              <label className="label">Reference Price / Share</label>
-              <input
-                className="input"
-                readOnly
-                value={referencePrice}
-              />
-            </div>
+            <hr className="import-divider" />
             <div>
               <label className="label">Attribution</label>
               <div>{detail.attribution}</div>
-              <div className="muted">Public listing data (demo)</div>
+              <div className="muted">
+                {source === "PUBLIC" ? "Public listing data (demo)" : "Partner feed data"}
+              </div>
             </div>
             <button
               className="import-primary"

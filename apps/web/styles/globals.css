@@ -1,12 +1,15 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap");
+
 :root {
-  --bg: #f7f4ef;
+  --bg: #eef1f6;
   --surface: #ffffff;
-  --ink: #2a2a2a;
-  --muted: #6b6b6b;
-  --accent: #0f6d5f;
-  --accent-strong: #0a4f45;
-  --border: #e3dfd7;
-  --shadow: 0 18px 40px rgba(25, 20, 10, 0.12);
+  --ink: #1c2430;
+  --muted: #5d6675;
+  --accent: #2b4c7e;
+  --accent-strong: #213a62;
+  --border: #d9dee7;
+  --shadow: 0 18px 40px rgba(21, 28, 41, 0.12);
+  --nav-bg: linear-gradient(135deg, #1f2a44 0%, #162033 50%, #111826 100%);
 }
 
 * {
@@ -15,16 +18,14 @@
 
 body {
   margin: 0;
-  background-color: #f4efe6;
+  background-color: #e9edf5;
   background-image:
-    radial-gradient(circle at top, #fffdf8 0%, #f2ede4 45%, #efe8dd 100%),
-    url("/backsplash-dots.svg"),
-    url("/backsplash-tiles.svg");
-  background-repeat: no-repeat, repeat, repeat;
-  background-size: cover, 160px, 260px;
-  background-position: center, top left, top right;
+    radial-gradient(circle at top, #f9fbff 0%, #edf1f7 45%, #e6ebf4 100%);
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
   color: var(--ink);
-  font-family: "Iowan Old Style", "Palatino", "Georgia", "Times New Roman", serif;
+  font-family: "Manrope", "Segoe UI", "Tahoma", sans-serif;
 }
 
 a {
@@ -37,30 +38,35 @@ a:hover {
 }
 
 .container {
-  max-width: 1080px;
+  max-width: 1120px;
   margin: 0 auto;
-  padding: 32px 24px 64px;
+  padding: 20px 24px 64px;
 }
 
 .nav {
   display: flex;
   align-items: center;
-  gap: 16px;
-  height: 72px;
-  padding: 0 20px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--shadow);
+  gap: 14px;
+  height: auto;
+  padding: 10px 16px;
+  background: var(--nav-bg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 16px 30px rgba(16, 24, 40, 0.3);
   position: sticky;
   top: 16px;
   z-index: 10;
+  color: #f5f7fb;
+  flex-wrap: wrap;
+  row-gap: 10px;
 }
 
 .nav-links {
   display: flex;
-  gap: 14px;
+  gap: 10px;
   flex-wrap: wrap;
+  flex: 1 1 520px;
+  min-width: 0;
 }
 
 .nav-link {
@@ -68,11 +74,22 @@ a:hover {
   align-items: center;
   gap: 8px;
   font-weight: 600;
+  font-size: 14px;
+  color: #f1f4fa;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.nav-link:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .nav-badge {
-  background: #f2c94c;
-  color: #2b2316;
+  background: #e46f3a;
+  color: #fff;
   border-radius: 999px;
   padding: 2px 8px;
   font-size: 12px;
@@ -88,14 +105,22 @@ a:hover {
 .nav-right-stack {
   margin-left: auto;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  min-width: 160px;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: rgba(245, 247, 251, 0.8);
+  flex: 0 1 auto;
 }
 
 .nav-right-stack .nav-link {
-  justify-content: flex-end;
+  justify-content: center;
+}
+
+.nav-right-stack .muted {
+  color: rgba(241, 244, 250, 0.7);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .logo {
@@ -105,15 +130,21 @@ a:hover {
   letter-spacing: 0.4px;
   font-size: 18px;
   position: relative;
-  height: 72px;
-  max-width: 220px;
+  height: 44px;
+  max-width: 200px;
+  gap: 10px;
+  color: #f5f7fb;
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .logo img {
   display: block;
-  height: 56px;
+  height: 34px;
   width: auto;
-  max-width: 200px;
+  max-width: 180px;
   object-fit: contain;
 }
 
@@ -156,7 +187,7 @@ a:hover {
 }
 
 .main {
-  margin-top: 28px;
+  margin-top: 20px;
 }
 
 .home-hero {
@@ -234,12 +265,13 @@ a:hover {
 
 .button {
   border: none;
-  border-radius: 999px;
+  border-radius: 12px;
   padding: 10px 18px;
   font-weight: 600;
   background: var(--accent);
   color: #fff;
   cursor: pointer;
+  box-shadow: 0 8px 16px rgba(31, 58, 98, 0.2);
 }
 
 .button:disabled {
@@ -248,8 +280,9 @@ a:hover {
 }
 
 .button.secondary {
-  background: #e7e1d7;
-  color: #332d24;
+  background: #e4e7ef;
+  color: #24314a;
+  box-shadow: none;
 }
 
 .button.danger {

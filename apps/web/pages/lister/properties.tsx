@@ -122,8 +122,22 @@ export default function ListerPropertiesPage() {
   return (
     <div className="import-page">
       <section className="import-header">
-        <h1>Your Properties</h1>
-        <p>Manage your listings and import new properties faster.</p>
+        <div>
+          <h1>Your Properties</h1>
+          <p>Manage your listings and import new properties faster.</p>
+        </div>
+        <div className="import-toolbar">
+          <button className="import-pill" type="button">
+            Lists
+          </button>
+          <button
+            className="import-primary"
+            type="button"
+            onClick={() => router.push("/listings/new")}
+          >
+            List New Property
+          </button>
+        </div>
       </section>
       {kycApproved === false && (
         <p className="status-error">
@@ -131,31 +145,42 @@ export default function ListerPropertiesPage() {
         </p>
       )}
 
-      <section className="import-card">
+      <section className="import-banner">
         <div>
-          <h2 className="import-section-title">
-            List a property faster by importing from MLS or public listing
-            services.
-          </h2>
+          <strong>List a property faster</strong> by importing from MLS or public
+          listing services. Quickly fractionalize listings already live on the
+          market.
         </div>
-        <div className="import-actions">
-          <button
-            className="import-primary"
-            onClick={() => goToImport()}
-            disabled={kycApproved === false}
-          >
-            Import from Listing
-          </button>
-        </div>
+        <button
+          className="import-primary"
+          onClick={() => goToImport()}
+          disabled={kycApproved === false}
+        >
+          Import from Listing
+        </button>
       </section>
 
-      <form className="import-search-row import-card" onSubmit={handleSearch}>
-        <input
-          className="input"
-          placeholder="Search by MLS ID, address or keyword"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
+      <form
+        className="import-search-row import-search-row-single import-card"
+        onSubmit={handleSearch}
+      >
+        <div className="import-search">
+          <span className="search-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+              <path
+                d="M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Zm8 2-4.2-4.2"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <input
+            placeholder="Search by MLS ID, address or keyword"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
         <button
           className="import-primary"
           type="submit"
@@ -194,7 +219,13 @@ export default function ListerPropertiesPage() {
                 </td>
                 <td>
                   <div className="property-meta">
-                    <span className="badge">{row.status}</span>
+                    <span
+                      className={`import-status-pill ${
+                        row.status.toLowerCase() === "pending" ? "warn" : ""
+                      }`}
+                    >
+                      {row.status}
+                    </span>
                     <span className="muted">{row.mlsId}</span>
                   </div>
                 </td>

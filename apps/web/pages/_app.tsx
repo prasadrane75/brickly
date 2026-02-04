@@ -33,7 +33,7 @@ export default function App({ Component, pageProps }: AppProps) {
     <div className="container">
       <nav className="nav">
         <Link href="/" className="logo">
-          <img src="/brickylogo.png" alt="Brickly" />
+          <img src="/bricklyusa-logo.svg" alt="bricklyusa" />
         </Link>
         <div className="nav-links">
           {role !== "TENANT" && (

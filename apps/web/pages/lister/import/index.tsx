@@ -103,8 +103,22 @@ export default function ImportListingsPage() {
   return (
     <div className="import-page">
       <section className="import-header">
-        <h1>Import Listings</h1>
-        <p>Import listing details using public data sources or partner feeds.</p>
+        <div>
+          <h1>Import Listings</h1>
+          <p>Import listing details using public data sources or partner feeds.</p>
+        </div>
+        <div className="import-toolbar">
+          <button className="import-pill" type="button">
+            Lists
+          </button>
+          <button
+            className="import-primary"
+            type="button"
+            onClick={() => router.push("/listings/new")}
+          >
+            List New Property
+          </button>
+        </div>
       </section>
       {kycApproved === false && (
         <p className="status-error">
@@ -124,12 +138,23 @@ export default function ImportListingsPage() {
             MLS (Coming soon)
           </option>
         </select>
-        <input
-          className="input"
-          placeholder="Search by MLS ID, address or keyword"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
+        <div className="import-search">
+          <span className="search-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+              <path
+                d="M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Zm8 2-4.2-4.2"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
+            </svg>
+          </span>
+          <input
+            placeholder="Search by MLS ID, address or keyword"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </div>
         <button
           className="import-primary"
           type="submit"
@@ -171,7 +196,13 @@ export default function ImportListingsPage() {
                   </td>
                   <td>
                     <div className="property-meta">
-                      <span className="badge">{row.status}</span>
+                      <span
+                        className={`import-status-pill ${
+                          row.status.toLowerCase() === "pending" ? "warn" : ""
+                        }`}
+                      >
+                        {row.status}
+                      </span>
                       <span className="muted">
                         {row.beds} bd · {row.baths} ba
                       </span>
