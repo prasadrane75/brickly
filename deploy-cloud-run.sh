@@ -30,6 +30,15 @@ docker buildx build --platform linux/amd64,linux/arm64 \
   -t "us-east1-docker.pkg.dev/${PROJECT}/${REPO}/brickly-api:latest" \
   -f apps/api/Dockerfile --push .
 
+echo "==> Deploy API"
+API_URL=$(gcloud run deploy api \
+  --image "${API_IMAGE}" \
+  --region "${REGION}" \
+  --set-env-vars DATABASE_URL="${DB_URL}",JWT_SECRET="${JWT_SECRET}" \
+  --allow-unauthenticated \
+  --format="value(status.url)")
+echo "API_URL=${API_URL}"
+
 echo "==> Build + push Web"
 docker buildx build --platform linux/amd64,linux/arm64 \
   --build-arg NEXT_PUBLIC_API_BASE_URL="${API_URL}" \
@@ -42,15 +51,6 @@ docker buildx build --platform linux/amd64,linux/arm64 \
   -t "${DB_IMAGE}" \
   -t "us-east1-docker.pkg.dev/${PROJECT}/${REPO}/brickly-db:latest" \
   -f db/Dockerfile --push db
-
-echo "==> Deploy API"
-API_URL=$(gcloud run deploy api \
-  --image "${API_IMAGE}" \
-  --region "${REGION}" \
-  --set-env-vars DATABASE_URL="${DB_URL}",JWT_SECRET="${JWT_SECRET}" \
-  --allow-unauthenticated \
-  --format="value(status.url)")
-echo "API_URL=${API_URL}"
 
 echo "==> Deploy Web"
 WEB_URL=$(gcloud run deploy web \
