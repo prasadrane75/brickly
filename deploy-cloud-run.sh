@@ -32,6 +32,7 @@ docker buildx build --platform linux/amd64,linux/arm64 \
 
 echo "==> Build + push Web"
 docker buildx build --platform linux/amd64,linux/arm64 \
+  --build-arg NEXT_PUBLIC_API_BASE_URL="${API_URL}" \
   -t "${WEB_IMAGE}" \
   -t "us-east1-docker.pkg.dev/${PROJECT}/${REPO}/brickly-web:latest" \
   -f apps/web/Dockerfile --push .
