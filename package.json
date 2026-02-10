@@ -16,6 +16,8 @@
     "prisma:seed": "npm --workspace apps/api run prisma:seed"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.1",
+    "@types/nodemailer": "^7.0.9",
     "concurrently": "^8.2.2"
   }
 }

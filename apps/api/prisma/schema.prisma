@@ -56,6 +56,65 @@ enum SellOrderStatus {
   CANCELLED
 }
 
+enum BuyOrderStatus {
+  OPEN
+  PARTIAL
+  FILLED
+  CANCELLED
+}
+
+enum BuyOrderType {
+  MARKET
+  LIMIT
+}
+
+enum SellOrderStrategy {
+  MAX_PRICE
+  BALANCED
+  FAST_EXIT
+}
+
+enum NotificationType {
+  TARGETED_OFFER
+}
+
+model TargetingRuleConfig {
+  id                   String   @id @default(uuid()) @db.Uuid
+  name                 String   @unique
+  ownsPropertyWeight   Int      @default(40)
+  viewScorePerCount    Int      @default(6)
+  maxViewScore         Int      @default(30)
+  similarHoldingsWeight Int     @default(20)
+  recentBuyerWeight    Int      @default(10)
+  minScoreToTarget     Int      @default(1)
+  maxBuyersPerOrder    Int      @default(20)
+  cooldownHours        Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model MarketRuleConfig {
+  id                          String   @id @default(uuid()) @db.Uuid
+  name                        String   @unique
+  liquidityGoodThreshold      Int      @default(70)
+  liquidityMidThreshold       Int      @default(50)
+  liquidityLookbackDays       Int      @default(14)
+  liquidityTradeWeight        Int      @default(40)
+  liquidityTimeWeight         Int      @default(35)
+  liquidityDeviationWeight    Int      @default(25)
+  liquidityTradeCountCap      Int      @default(10)
+  liquidityTimeToFillMaxHours Int      @default(168)
+  referenceWeightPrimary      Decimal  @default(0.4) @db.Decimal(4, 3)
+  referenceWeightSecondary    Decimal  @default(0.4) @db.Decimal(4, 3)
+  referenceWeightNav          Decimal  @default(0.2) @db.Decimal(4, 3)
+  strategyMultiplierFastExit  Decimal  @default(0.95) @db.Decimal(6, 3)
+  strategyMultiplierBalanced  Decimal  @default(1.0) @db.Decimal(6, 3)
+  strategyMultiplierMaxPrice  Decimal  @default(1.03) @db.Decimal(6, 3)
+  maxPriceCapMultiplier       Decimal  @default(1.2) @db.Decimal(6, 3)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+}
+
 model User {
   id            String       @id @default(uuid()) @db.Uuid
   email         String?      @unique
@@ -73,6 +132,10 @@ model User {
   sellerTrades  Trade[]      @relation("SellerTrades")
   rentalApplications RentalApplication[] @relation("TenantApplications")
   verificationTokens VerificationToken[]
+  notifications Notification[]
+  targetedOffers TargetedOffer[] @relation("TargetedOffersBuyer")
+  propertyViews  PropertyView[]
+  buyOrders      BuyOrder[]
 
   @@index([email])
   @@index([phone])
@@ -111,6 +174,7 @@ model Property {
   state           String
   zip             String
   status          PropertyStatus
+  liquidityScore  Int            @default(50)
   sourceType      SourceType?
   sourceRefId     String?
   importedAt      DateTime?
@@ -120,6 +184,7 @@ model Property {
   bathrooms       Int?
   targetRaise     Decimal?       @db.Decimal(14, 2)
   estMonthlyRent  Decimal?       @db.Decimal(14, 2)
+  lastTradeAt     DateTime?
   createdAt       DateTime       @default(now())
 
   listings        Listing[]
@@ -128,6 +193,9 @@ model Property {
   sellOrders      SellOrder[]
   trades          Trade[]
   rentalApplications RentalApplication[]
+  propertyViews  PropertyView[]
+  notifications  Notification[]
+  buyOrders      BuyOrder[]
 
   @@index([city, state])
   @@index([status])
@@ -215,6 +283,7 @@ model ShareClass {
   totalShares            Int
   sharesAvailable        Int
   referencePricePerShare Decimal   @db.Decimal(14, 4)
+  lastReferenceUpdateAt  DateTime?
 
   property               Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   holdings               Holding[]
@@ -242,14 +311,19 @@ model SellOrder {
   userId                String          @db.Uuid
   propertyId            String          @db.Uuid
   sharesForSale         Int
+  remainingShares       Int
   askPricePerShare      Decimal         @db.Decimal(14, 4)
   optimizedPricePerShare Decimal?       @db.Decimal(14, 4)
+  liquidityScoreAtCreation Int?
+  strategy              SellOrderStrategy @default(BALANCED)
   status                SellOrderStatus
   createdAt             DateTime        @default(now())
 
   user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   property              Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   trades                Trade[]
+  targetedOffers        TargetedOffer[]
+  notifications         Notification[]
 
   @@index([userId])
   @@index([propertyId])
@@ -275,4 +349,75 @@ model Trade {
   @@index([propertyId])
   @@index([buyerUserId])
   @@index([sellerUserId])
+}
+
+model BuyOrder {
+  id               String         @id @default(uuid()) @db.Uuid
+  buyerUserId      String         @db.Uuid
+  propertyId       String         @db.Uuid
+  orderType        BuyOrderType
+  sharesRequested  Int
+  filledShares     Int            @default(0)
+  maxPricePerShare Decimal?       @db.Decimal(14, 4)
+  status           BuyOrderStatus @default(OPEN)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  buyer            User           @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  property         Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([buyerUserId])
+  @@index([propertyId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PropertyView {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  propertyId   String   @db.Uuid
+  viewCount    Int      @default(1)
+  lastViewedAt DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, propertyId])
+  @@index([propertyId])
+  @@index([lastViewedAt])
+}
+
+model TargetedOffer {
+  id          String   @id @default(uuid()) @db.Uuid
+  sellOrderId String   @db.Uuid
+  buyerUserId String   @db.Uuid
+  score       Int
+  createdAt   DateTime @default(now())
+
+  sellOrder   SellOrder @relation(fields: [sellOrderId], references: [id], onDelete: Cascade)
+  buyer       User      @relation("TargetedOffersBuyer", fields: [buyerUserId], references: [id], onDelete: Cascade)
+
+  @@unique([sellOrderId, buyerUserId])
+  @@index([buyerUserId])
+}
+
+model Notification {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @db.Uuid
+  sellOrderId String?          @db.Uuid
+  propertyId  String?          @db.Uuid
+  type        NotificationType
+  message     String
+  createdAt   DateTime         @default(now())
+  readAt      DateTime?
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sellOrder   SellOrder?        @relation(fields: [sellOrderId], references: [id], onDelete: Cascade)
+  property    Property?         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([propertyId])
+  @@unique([userId, sellOrderId, type])
 }

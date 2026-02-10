@@ -38,6 +38,7 @@ type PortfolioItem = {
   sharesOwned: number;
   percent: number;
   updatedAt: string;
+  avgBuyPricePerShare?: number | null;
   property: Property;
   shareClass: {
     id: string;
@@ -94,6 +95,116 @@ type SellOrder = {
     city: string;
     state: string;
   };
+};
+
+type BuyOrder = {
+  id: string;
+  orderType: "MARKET" | "LIMIT";
+  sharesRequested: number;
+  filledShares: number;
+  maxPricePerShare: number | null;
+  status: "OPEN" | "PARTIAL" | "FILLED" | "CANCELLED";
+  property: {
+    id: string;
+    address1: string;
+    city: string;
+    state: string;
+  };
+};
+
+type NotificationItem = {
+  id: string;
+  type: string;
+  message: string;
+  createdAt: string;
+  readAt?: string | null;
+  propertyId?: string | null;
+};
+
+type LiquiditySummary = {
+  avgLiquidityScore: number;
+  dailyTradeVolume: number;
+  avgBidAskSpread: number;
+  openSellOrders: number;
+  activeBuyOrders: number;
+};
+
+type LiquidityTrendPoint = {
+  date: string;
+  score: number;
+};
+
+type LiquidityDetail = {
+  property: {
+    id: string;
+    address1: string;
+    city?: string;
+    state?: string;
+    referencePricePerShare: number | null;
+    liquidityScore: number;
+    lastTradeAt?: string | null;
+  };
+  sellOrders: {
+    id: string;
+    remainingShares: number;
+    askPricePerShare: string;
+    optimizedPricePerShare: string | null;
+    strategy?: string | null;
+  }[];
+  trades: {
+    id: string;
+    sharesTraded: number;
+    pricePerShare: number;
+    tradedAt: string;
+    status?: string | null;
+    propertyId?: string;
+  }[];
+};
+
+type TargetingConfig = {
+  ownsPropertyWeight: number;
+  viewScorePerCount: number;
+  maxViewScore: number;
+  similarHoldingsWeight: number;
+  recentBuyerWeight: number;
+  minScoreToTarget: number;
+  maxBuyersPerOrder: number;
+  cooldownHours: number;
+};
+
+type MarketRules = {
+  liquidityGoodThreshold: number;
+  liquidityMidThreshold: number;
+  liquidityLookbackDays: number;
+  liquidityTradeWeight: number;
+  liquidityTimeWeight: number;
+  liquidityDeviationWeight: number;
+  liquidityTradeCountCap: number;
+  liquidityTimeToFillMaxHours: number;
+  referenceWeightPrimary: number;
+  referenceWeightSecondary: number;
+  referenceWeightNav: number;
+  strategyMultiplierFastExit: number;
+  strategyMultiplierBalanced: number;
+  strategyMultiplierMaxPrice: number;
+  maxPriceCapMultiplier: number;
+};
+
+type MatchPreview = {
+  matches: {
+    buyOrderId: string;
+    sellOrderId: string;
+    shares: number;
+    pricePerShare: number;
+  }[];
+};
+
+type ListerOverview = {
+  id: string;
+  email?: string | null;
+  phone?: string | null;
+  listingCount: number;
+  listings: Listing[];
 };
 
 type Listing = {
@@ -182,7 +293,7 @@ type Screen =
   | { name: "import-detail"; externalId: string; source: "PUBLIC" | "PARTNER" | "MLS" }
   | { name: "portfolio" }
   | { name: "alerts" }
-  | { name: "market" }
+  | { name: "market-orders"; propertyId?: string }
   | { name: "listings" }
   | { name: "new-listing" }
   | { name: "lister-properties" }
@@ -192,11 +303,31 @@ type Screen =
   | { name: "kyc" }
   | { name: "admin-kyc" }
   | { name: "admin-mls" }
+  | { name: "admin-liquidity" }
+  | { name: "admin-liquidity-detail"; propertyId: string }
+  | { name: "admin-targeting" }
+  | { name: "admin-market-rules" }
+  | { name: "admin-listers" }
   | { name: "rental-applications" };
 
-async function fetchJson<T>(path: string, token?: string): Promise<T> {
+async function fetchJson<T>(
+  path: string,
+  token?: string,
+  init?: { method?: string; body?: string; headers?: Record<string, string> }
+): Promise<T> {
+  const headers: Record<string, string> = {
+    ...(init?.headers ?? {}),
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  if (init?.body && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
   const res = await fetch(`${API_BASE_URL}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    method: init?.method ?? "GET",
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
+    body: init?.body,
   });
   if (!res.ok) {
     const text = await res.text();
@@ -215,6 +346,13 @@ function decodeToken(token: string): any | null {
   } catch {
     return null;
   }
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString();
 }
 
 export default function App() {
@@ -333,6 +471,7 @@ export default function App() {
     if (screen.name === "alerts") {
       return (
         <AlertsScreen
+          token={token}
           onBack={pop}
           onNavigate={(next) => goRoot(next)}
           onLogout={handleLogout}
@@ -342,9 +481,9 @@ export default function App() {
         />
       );
     }
-    if (screen.name === "market") {
+    if (screen.name === "market-orders") {
       return (
-        <MarketScreen
+        <MarketOrdersScreen
           token={token}
           onBack={pop}
           onNavigate={(next) => goRoot(next)}
@@ -353,6 +492,7 @@ export default function App() {
           userLabel={userLabel}
           role={role}
           canGoBack={stack.length > 1}
+          prefillPropertyId={screen.propertyId}
         />
       );
     }
@@ -480,6 +620,80 @@ export default function App() {
         />
       );
     }
+    if (screen.name === "admin-liquidity") {
+      return (
+        <AdminLiquidityScreen
+          token={token}
+          onBack={pop}
+          onNavigate={(next) => goRoot(next)}
+          onSelect={(propertyId) =>
+            push({ name: "admin-liquidity-detail", propertyId })
+          }
+          onLogin={() => replace({ name: "login" })}
+          onLogout={handleLogout}
+          userLabel={userLabel}
+          role={role}
+          canGoBack={stack.length > 1}
+        />
+      );
+    }
+    if (screen.name === "admin-liquidity-detail") {
+      return (
+        <AdminLiquidityDetailScreen
+          token={token}
+          propertyId={screen.propertyId}
+          onBack={pop}
+          onNavigate={(next) => goRoot(next)}
+          onLogin={() => replace({ name: "login" })}
+          onLogout={handleLogout}
+          userLabel={userLabel}
+          role={role}
+          canGoBack={stack.length > 1}
+        />
+      );
+    }
+    if (screen.name === "admin-targeting") {
+      return (
+        <AdminTargetingScreen
+          token={token}
+          onBack={pop}
+          onNavigate={(next) => goRoot(next)}
+          onLogin={() => replace({ name: "login" })}
+          onLogout={handleLogout}
+          userLabel={userLabel}
+          role={role}
+          canGoBack={stack.length > 1}
+        />
+      );
+    }
+    if (screen.name === "admin-market-rules") {
+      return (
+        <AdminMarketRulesScreen
+          token={token}
+          onBack={pop}
+          onNavigate={(next) => goRoot(next)}
+          onLogin={() => replace({ name: "login" })}
+          onLogout={handleLogout}
+          userLabel={userLabel}
+          role={role}
+          canGoBack={stack.length > 1}
+        />
+      );
+    }
+    if (screen.name === "admin-listers") {
+      return (
+        <AdminListersScreen
+          token={token}
+          onBack={pop}
+          onNavigate={(next) => goRoot(next)}
+          onLogin={() => replace({ name: "login" })}
+          onLogout={handleLogout}
+          userLabel={userLabel}
+          role={role}
+          canGoBack={stack.length > 1}
+        />
+      );
+    }
     if (screen.name === "rental-applications") {
       return (
         <RentalApplicationsScreen
@@ -497,6 +711,7 @@ export default function App() {
         token={token}
         propertyId={screen.propertyId}
         onBack={pop}
+        onNavigate={(next) => goRoot(next)}
         onLogout={handleLogout}
         userLabel={userLabel}
         role={role}
@@ -1174,6 +1389,22 @@ function PortfolioScreen({
                   label="Ownership %"
                   value={`${(item.percent * 100).toFixed(2)}%`}
                 />
+                <DetailRow
+                  label="Avg Buy Price"
+                  value={
+                    item.avgBuyPricePerShare
+                      ? `$${item.avgBuyPricePerShare.toFixed(2)}`
+                      : "—"
+                  }
+                />
+                <DetailRow
+                  label="Reference Price"
+                  value={
+                    item.shareClass.referencePricePerShare
+                      ? `$${item.shareClass.referencePricePerShare.toFixed(2)}`
+                      : "—"
+                  }
+                />
               </View>
             )}
             ListEmptyComponent={
@@ -1187,6 +1418,7 @@ function PortfolioScreen({
 }
 
 function AlertsScreen({
+  token,
   onBack,
   onNavigate,
   onLogout,
@@ -1194,6 +1426,7 @@ function AlertsScreen({
   role,
   canGoBack,
 }: {
+  token: string | null;
   onBack: () => void;
   onNavigate: (next: Screen) => void;
   onLogout: () => void;
@@ -1201,6 +1434,50 @@ function AlertsScreen({
   role: string | null;
   canGoBack: boolean;
 }) {
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [properties, setProperties] = useState<Record<string, Property>>({});
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!token) {
+      setNotifications([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    fetchJson<NotificationItem[]>("/notifications", token)
+      .then(async (items) => {
+        setNotifications(items);
+        const ids = Array.from(
+          new Set(items.map((item) => item.propertyId).filter(Boolean))
+        ) as string[];
+        const entries = await Promise.all(
+          ids.map((id) =>
+            fetchJson<Property>(`/properties/${id}`, token).then(
+              (property) => [id, property] as [string, Property]
+            )
+          )
+        );
+        const map: Record<string, Property> = {};
+        for (const [id, prop] of entries) {
+          map[id] = prop;
+        }
+        setProperties(map);
+      })
+      .catch((error: any) =>
+        setMessage(error?.message || "Failed to load alerts.")
+      )
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  function getPropertyLabel(propertyId?: string | null) {
+    if (!propertyId) return "—";
+    const prop = properties[propertyId];
+    if (!prop) return propertyId.slice(0, 8);
+    return `${prop.address1}, ${prop.city}`;
+  }
+
   return (
     <View style={styles.screen}>
       <HeaderBar
@@ -1213,14 +1490,63 @@ function AlertsScreen({
         role={role}
       />
       <AppTabs active="alerts" onNavigate={onNavigate} />
-      <View style={styles.card}>
-        <Text style={styles.helperText}>No alerts yet.</Text>
-      </View>
+      {!token ? (
+        <View style={styles.card}>
+          <Text style={styles.helperText}>Login required to view alerts.</Text>
+        </View>
+      ) : loading ? (
+        <ActivityIndicator size="large" color="#2b4c7e" />
+      ) : (
+        <>
+          {message && <Text style={styles.helperText}>{message}</Text>}
+          {notifications.length === 0 ? (
+            <View style={styles.card}>
+              <Text style={styles.helperText}>No alerts yet.</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={notifications}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item }) => (
+                <View style={styles.card}>
+                  <Text style={styles.propertyTitle}>{item.message}</Text>
+                  <Text style={styles.propertySubtitle}>
+                    {getPropertyLabel(item.propertyId)}
+                  </Text>
+                  <View style={styles.row}>
+                    <Pressable
+                      style={styles.secondaryButton}
+                      onPress={() =>
+                        item.propertyId &&
+                        onNavigate({ name: "property", propertyId: item.propertyId })
+                      }
+                    >
+                      <Text style={styles.secondaryButtonText}>View Property</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.button}
+                      onPress={() =>
+                        onNavigate({
+                          name: "market-orders",
+                          propertyId: item.propertyId ?? undefined,
+                        })
+                      }
+                    >
+                      <Text style={styles.buttonText}>Place Buy Order</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+            />
+          )}
+        </>
+      )}
     </View>
   );
 }
 
-function MarketScreen({
+function MarketOrdersScreen({
   token,
   onBack,
   onNavigate,
@@ -1229,6 +1555,7 @@ function MarketScreen({
   userLabel,
   role,
   canGoBack,
+  prefillPropertyId,
 }: {
   token: string | null;
   onBack: () => void;
@@ -1238,8 +1565,16 @@ function MarketScreen({
   userLabel: string | null;
   role: string | null;
   canGoBack: boolean;
+  prefillPropertyId?: string;
 }) {
-  const [orders, setOrders] = useState<SellOrder[]>([]);
+  const [activeTab, setActiveTab] = useState<"buy" | "sell">("buy");
+  const [buyOrders, setBuyOrders] = useState<BuyOrder[]>([]);
+  const [sellOrders, setSellOrders] = useState<SellOrder[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string>("");
+  const [orderType, setOrderType] = useState<"MARKET" | "LIMIT">("LIMIT");
+  const [sharesRequested, setSharesRequested] = useState("100");
+  const [maxPrice, setMaxPrice] = useState("180");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -1247,10 +1582,23 @@ function MarketScreen({
     setLoading(true);
     setMessage(null);
     try {
-      const data = await fetchJson<SellOrder[]>("/market/sell-orders");
-      setOrders(data);
+      const [sellData, buyData, propertyData] = await Promise.all([
+        fetchJson<SellOrder[]>("/market/sell-orders"),
+        token ? fetchJson<BuyOrder[]>("/market/buy-orders", token) : Promise.resolve([]),
+        fetchJson<Property[]>("/properties"),
+      ]);
+      setSellOrders(sellData);
+      setBuyOrders(buyData);
+      const availableIds = new Set(sellData.map((order) => order.property.id));
+      const availableProperties = propertyData.filter((p) => availableIds.has(p.id));
+      setProperties(availableProperties);
+      const initialId =
+        prefillPropertyId && availableProperties.some((p) => p.id === prefillPropertyId)
+          ? prefillPropertyId
+          : availableProperties[0]?.id ?? "";
+      setSelectedPropertyId(initialId);
     } catch (error: any) {
-      setMessage(error?.message || "Failed to load sell orders");
+      setMessage(error?.message || "Failed to load market orders");
     } finally {
       setLoading(false);
     }
@@ -1258,104 +1606,244 @@ function MarketScreen({
 
   useEffect(() => {
     void loadOrders();
-  }, []);
+  }, [token, prefillPropertyId]);
 
-  async function handleBuy(orderId: string, sharesToBuy: number) {
+  async function createBuyOrder() {
     if (!token) {
-      setMessage("Login required to buy shares.");
+      setMessage("Login required to place buy orders.");
       return;
     }
     try {
-      const res = await fetch(`${API_BASE_URL}/market/buy`, {
+      const body: any = {
+        propertyId: selectedPropertyId,
+        orderType,
+        sharesRequested: Number(sharesRequested),
+      };
+      if (orderType === "LIMIT") {
+        body.maxPricePerShare = Number(maxPrice);
+      }
+      const res = await fetch(`${API_BASE_URL}/market/buy-orders`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ sellOrderId: orderId, sharesToBuy }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const text = await res.text();
-        throw new Error(text || "Failed to buy shares");
+        throw new Error(text || "Failed to create buy order");
       }
-      setMessage("Order filled.");
+      setMessage("Buy order created.");
       await loadOrders();
     } catch (error: any) {
-      setMessage(error?.message || "Failed to buy shares");
+      setMessage(error?.message || "Failed to create buy order");
     }
+  }
+
+  async function cancelBuyOrder(id: string) {
+    if (!token) return;
+    try {
+      await fetch(`${API_BASE_URL}/market/buy-orders/${id}/cancel`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await loadOrders();
+    } catch (error: any) {
+      setMessage(error?.message || "Failed to cancel buy order");
+    }
+  }
+
+  function selectFromSell(order: SellOrder) {
+    setSelectedPropertyId(order.property.id);
+    setOrderType("LIMIT");
+    setSharesRequested(String(order.sharesForSale));
+    setMaxPrice(order.askPricePerShare);
+    setActiveTab("buy");
   }
 
   return (
     <View style={styles.screen}>
       <HeaderBar
-        title="Market"
-        subtitle="Browse available sell orders."
+        title="Market Orders"
+        subtitle="Create buy orders or review sell orders."
         canGoBack={canGoBack}
         onBack={onBack}
         onLogout={onLogout}
         userLabel={userLabel}
         role={role}
       />
-      <AppTabs active="market" onNavigate={onNavigate} />
-      {!token && (
-        <View style={styles.card}>
-          <Text style={styles.subtitle}>Login required to buy shares.</Text>
-          <Pressable style={styles.button} onPress={onLogin}>
-            <Text style={styles.buttonText}>Go to Login</Text>
-          </Pressable>
-        </View>
-      )}
-      {message && <Text style={styles.helperText}>{message}</Text>}
+      <AppTabs active="market-orders" onNavigate={onNavigate} />
+      <View style={styles.row}>
+        <Pressable
+          style={[styles.tabButton, activeTab === "buy" && styles.tabButtonActive]}
+          onPress={() => setActiveTab("buy")}
+        >
+          <Text style={[styles.tabText, activeTab === "buy" && styles.tabTextActive]}>
+            Buy Orders
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.tabButton, activeTab === "sell" && styles.tabButtonActive]}
+          onPress={() => setActiveTab("sell")}
+        >
+          <Text style={[styles.tabText, activeTab === "sell" && styles.tabTextActive]}>
+            Sell Orders
+          </Text>
+        </Pressable>
+      </View>
       {loading ? (
         <ActivityIndicator size="large" color="#2b4c7e" />
       ) : (
-        <FlatList
-          data={orders}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          renderItem={({ item }) => (
-            <MarketOrderCard order={item} onBuy={handleBuy} />
+        <>
+          {message && <Text style={styles.helperText}>{message}</Text>}
+          {activeTab === "buy" ? (
+            <ScrollView contentContainerStyle={styles.listContent}>
+              {!token && (
+                <View style={styles.card}>
+                  <Text style={styles.helperText}>
+                    Login required to place buy orders.
+                  </Text>
+                  <Pressable style={styles.button} onPress={onLogin}>
+                    <Text style={styles.buttonText}>Go to Login</Text>
+                  </Pressable>
+                </View>
+              )}
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Create Buy Order</Text>
+                <Text style={styles.helperText}>Select a property</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {properties.map((property) => (
+                    <Pressable
+                      key={property.id}
+                      style={[
+                        styles.optionChip,
+                        property.id === selectedPropertyId && styles.optionChipActive,
+                      ]}
+                      onPress={() => setSelectedPropertyId(property.id)}
+                    >
+                      <Text
+                        style={[
+                          styles.optionChipText,
+                          property.id === selectedPropertyId && styles.optionChipTextActive,
+                        ]}
+                      >
+                        {property.address1}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <Text style={styles.helperText}>Order Type</Text>
+                <View style={styles.row}>
+                  <Pressable
+                    style={[
+                      styles.optionChip,
+                      orderType === "MARKET" && styles.optionChipActive,
+                    ]}
+                    onPress={() => setOrderType("MARKET")}
+                  >
+                    <Text
+                      style={[
+                        styles.optionChipText,
+                        orderType === "MARKET" && styles.optionChipTextActive,
+                      ]}
+                    >
+                      Market
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.optionChip,
+                      orderType === "LIMIT" && styles.optionChipActive,
+                    ]}
+                    onPress={() => setOrderType("LIMIT")}
+                  >
+                    <Text
+                      style={[
+                        styles.optionChipText,
+                        orderType === "LIMIT" && styles.optionChipTextActive,
+                      ]}
+                    >
+                      Limit
+                    </Text>
+                  </Pressable>
+                </View>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Shares"
+                  keyboardType="numeric"
+                  value={sharesRequested}
+                  onChangeText={setSharesRequested}
+                />
+                {orderType === "LIMIT" && (
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Max price per share"
+                    keyboardType="numeric"
+                    value={maxPrice}
+                    onChangeText={setMaxPrice}
+                  />
+                )}
+                <Pressable style={styles.button} onPress={createBuyOrder}>
+                  <Text style={styles.buttonText}>Create Order</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.sectionTitle}>Recent Buy Orders</Text>
+              {buyOrders.map((order) => (
+                <View key={order.id} style={styles.card}>
+                  <Text style={styles.propertyTitle}>{order.property.address1}</Text>
+                  <Text style={styles.propertySubtitle}>
+                    {order.property.city}, {order.property.state}
+                  </Text>
+                  <DetailRow label="Type" value={order.orderType} />
+                  <DetailRow
+                    label="Shares"
+                    value={`${order.filledShares}/${order.sharesRequested}`}
+                  />
+                  <DetailRow
+                    label="Max Price"
+                    value={order.maxPricePerShare ? `$${order.maxPricePerShare}` : "—"}
+                  />
+                  <DetailRow label="Status" value={order.status} />
+                  {(order.status === "OPEN" || order.status === "PARTIAL") && (
+                    <Pressable
+                      style={styles.secondaryButton}
+                      onPress={() => cancelBuyOrder(order.id)}
+                    >
+                      <Text style={styles.secondaryButtonText}>Cancel</Text>
+                    </Pressable>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+          ) : (
+            <FlatList
+              data={sellOrders}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              renderItem={({ item }) => (
+                <View style={styles.card}>
+                  <Text style={styles.propertyTitle}>{item.property.address1}</Text>
+                  <Text style={styles.propertySubtitle}>
+                    {item.property.city}, {item.property.state}
+                  </Text>
+                  <DetailRow label="Shares for sale" value={`${item.sharesForSale}`} />
+                  <DetailRow label="Ask price" value={`$${item.askPricePerShare}`} />
+                  <Pressable
+                    style={styles.secondaryButton}
+                    onPress={() => selectFromSell(item)}
+                  >
+                    <Text style={styles.secondaryButtonText}>Buy This</Text>
+                  </Pressable>
+                </View>
+              )}
+              ListEmptyComponent={
+                <Text style={styles.helperText}>No sell orders available.</Text>
+              }
+            />
           )}
-          ListEmptyComponent={
-            <Text style={styles.helperText}>No sell orders available.</Text>
-          }
-        />
+        </>
       )}
-    </View>
-  );
-}
-
-function MarketOrderCard({
-  order,
-  onBuy,
-}: {
-  order: SellOrder;
-  onBuy: (orderId: string, sharesToBuy: number) => void;
-}) {
-  const [sharesToBuy, setSharesToBuy] = useState("1");
-
-  return (
-    <View style={styles.card}>
-      <Text style={styles.propertyTitle}>{order.property.address1}</Text>
-      <Text style={styles.propertySubtitle}>
-        {order.property.city}, {order.property.state}
-      </Text>
-      <DetailRow label="Shares" value={`${order.sharesForSale}`} />
-      <DetailRow label="Ask / Share" value={`${order.askPricePerShare}`} />
-      <View style={styles.inlineRow}>
-        <TextInput
-          style={[styles.input, styles.inlineInput]}
-          value={sharesToBuy}
-          onChangeText={setSharesToBuy}
-          keyboardType="numeric"
-        />
-        <Pressable
-          style={styles.button}
-          onPress={() => onBuy(order.id, Number(sharesToBuy))}
-        >
-          <Text style={styles.buttonText}>Buy</Text>
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -2609,6 +3097,797 @@ function AdminMlsScreen({
   );
 }
 
+function AdminLiquidityScreen({
+  token,
+  onBack,
+  onNavigate,
+  onSelect,
+  onLogin,
+  onLogout,
+  userLabel,
+  role,
+  canGoBack,
+}: {
+  token: string | null;
+  onBack: () => void;
+  onNavigate: (next: Screen) => void;
+  onSelect: (propertyId: string) => void;
+  onLogin: () => void;
+  onLogout: () => void;
+  userLabel: string | null;
+  role: string | null;
+  canGoBack: boolean;
+}) {
+  const [summary, setSummary] = useState<LiquiditySummary | null>(null);
+  const [trend, setTrend] = useState<LiquidityTrendPoint[]>([]);
+  const [sellOrders, setSellOrders] = useState<SellOrder[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  async function loadData() {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setMessage(null);
+    try {
+      const [summaryData, trendData, ordersData, propertyData] =
+        await Promise.all([
+          fetchJson<LiquiditySummary>("/admin/liquidity/summary", token),
+          fetchJson<LiquidityTrendPoint[]>("/admin/liquidity/trend", token),
+          fetchJson<SellOrder[]>("/market/sell-orders"),
+          fetchJson<Property[]>("/properties"),
+        ]);
+      setSummary(summaryData);
+      setTrend(trendData);
+      setSellOrders(ordersData);
+      setProperties(propertyData);
+    } catch (error: any) {
+      setMessage(error?.message || "Failed to load liquidity data");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadData();
+  }, [token]);
+
+  const flagged = useMemo(() => {
+    const openOrders = sellOrders.filter((order) => order.property?.id);
+    const propertyIds = new Set(openOrders.map((order) => order.property.id));
+    return properties
+      .filter((property) => propertyIds.has(property.id))
+      .sort((a, b) => (b.liquidityScore ?? 0) - (a.liquidityScore ?? 0));
+  }, [sellOrders, properties]);
+
+  async function recomputeAll() {
+    if (!token) return;
+    try {
+      await fetchJson("/admin/liquidity/recompute-all", token, { method: "POST" });
+      setMessage("Recomputed metrics for flagged properties.");
+      await loadData();
+    } catch (error: any) {
+      setMessage(error?.message || "Failed to recompute metrics");
+    }
+  }
+
+  return (
+    <View style={styles.screen}>
+      <HeaderBar
+        title="Liquidity Dashboard"
+        subtitle="Admin liquidity overview."
+        canGoBack={canGoBack}
+        onBack={onBack}
+        onLogout={onLogout}
+        userLabel={userLabel}
+        role={role}
+      />
+      <AppTabs active="admin-liquidity" onNavigate={onNavigate} />
+      {!token ? (
+        <View style={styles.card}>
+          <Text style={styles.subtitle}>Login required for admin actions.</Text>
+          <Pressable style={styles.button} onPress={onLogin}>
+            <Text style={styles.buttonText}>Go to Login</Text>
+          </Pressable>
+        </View>
+      ) : loading ? (
+        <ActivityIndicator size="large" color="#2b4c7e" />
+      ) : (
+        <ScrollView contentContainerStyle={styles.listContent}>
+          {message && <Text style={styles.helperText}>{message}</Text>}
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>KPIs</Text>
+            <DetailRow
+              label="Avg Liquidity Score"
+              value={`${summary?.avgLiquidityScore ?? 0}`}
+            />
+            <DetailRow
+              label="Daily Trade Volume"
+              value={`$${(summary?.dailyTradeVolume ?? 0).toFixed(0)}`}
+            />
+            <DetailRow
+              label="Avg Bid-Ask Spread"
+              value={`${(summary?.avgBidAskSpread ?? 0).toFixed(1)}%`}
+            />
+            <DetailRow
+              label="Open Sell Orders"
+              value={`${summary?.openSellOrders ?? 0}`}
+            />
+            <DetailRow
+              label="Active Buy Orders"
+              value={`${summary?.activeBuyOrders ?? 0}`}
+            />
+            <Pressable style={styles.secondaryButton} onPress={recomputeAll}>
+              <Text style={styles.secondaryButtonText}>Recompute Metrics</Text>
+            </Pressable>
+          </View>
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Liquidity Trend</Text>
+            {trend.map((point) => (
+              <DetailRow
+                key={point.date}
+                label={point.date}
+                value={`${point.score}`}
+              />
+            ))}
+          </View>
+          <Text style={styles.sectionTitle}>Flagged Properties</Text>
+          {flagged.map((property) => (
+            <Pressable
+              key={property.id}
+              style={styles.card}
+              onPress={() => onSelect(property.id)}
+            >
+              <Text style={styles.propertyTitle}>{property.address1}</Text>
+              <Text style={styles.propertySubtitle}>
+                {property.city}, {property.state}
+              </Text>
+              <DetailRow
+                label="Liquidity Score"
+                value={`${property.liquidityScore ?? 0}`}
+              />
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+function AdminLiquidityDetailScreen({
+  token,
+  propertyId,
+  onBack,
+  onNavigate,
+  onLogin,
+  onLogout,
+  userLabel,
+  role,
+  canGoBack,
+}: {
+  token: string | null;
+  propertyId: string;
+  onBack: () => void;
+  onNavigate: (next: Screen) => void;
+  onLogin: () => void;
+  onLogout: () => void;
+  userLabel: string | null;
+  role: string | null;
+  canGoBack: boolean;
+}) {
+  const [detail, setDetail] = useState<LiquidityDetail | null>(null);
+  const [preview, setPreview] = useState<MatchPreview | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  async function loadDetail() {
+    if (!token) return;
+    setLoading(true);
+    setMessage(null);
+    try {
+      const [data, matchPreview] = await Promise.all([
+        fetchJson<LiquidityDetail>(`/admin/liquidity/${propertyId}`, token),
+        fetchJson<MatchPreview>(
+          `/admin/match/preview?propertyId=${propertyId}`,
+          token
+        ),
+      ]);
+      setDetail(data);
+      setPreview(matchPreview);
+    } catch (error: any) {
+      setMessage(error?.message || "Failed to load liquidity details");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadDetail();
+  }, [token, propertyId]);
+
+  async function recompute() {
+    if (!token) return;
+    await fetchJson(`/admin/liquidity/recompute?propertyId=${propertyId}`, token, {
+      method: "POST",
+    });
+    await loadDetail();
+  }
+
+  async function matchOrders() {
+    if (!token) return;
+    await fetchJson(`/admin/match/run?propertyId=${propertyId}`, token, {
+      method: "POST",
+    });
+    setMessage("Matched orders.");
+    await loadDetail();
+  }
+
+  async function sendTargeting(sellOrderId: string) {
+    if (!token) return;
+    await fetchJson(`/admin/targeting/run?sellOrderId=${sellOrderId}`, token, {
+      method: "POST",
+    });
+    setMessage("Buyer alerts sent.");
+  }
+
+  return (
+    <View style={styles.screen}>
+      <HeaderBar
+        title="Liquidity Detail"
+        subtitle="Property liquidity details."
+        canGoBack={canGoBack}
+        onBack={onBack}
+        onLogout={onLogout}
+        userLabel={userLabel}
+        role={role}
+      />
+      <AppTabs active="admin-liquidity" onNavigate={onNavigate} />
+      {!token ? (
+        <View style={styles.card}>
+          <Text style={styles.subtitle}>Login required for admin actions.</Text>
+          <Pressable style={styles.button} onPress={onLogin}>
+            <Text style={styles.buttonText}>Go to Login</Text>
+          </Pressable>
+        </View>
+      ) : loading ? (
+        <ActivityIndicator size="large" color="#2b4c7e" />
+      ) : (
+        <ScrollView contentContainerStyle={styles.listContent}>
+          {message && <Text style={styles.helperText}>{message}</Text>}
+          {detail && (
+            <>
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>{detail.property.address1}</Text>
+                <Text style={styles.propertySubtitle}>
+                  {detail.property.city}, {detail.property.state}
+                </Text>
+                <DetailRow
+                  label="Reference Price"
+                  value={
+                    detail.property.referencePricePerShare
+                      ? `$${detail.property.referencePricePerShare}`
+                      : "—"
+                  }
+                />
+                <DetailRow
+                  label="Liquidity Score"
+                  value={`${detail.property.liquidityScore}`}
+                />
+                <DetailRow
+                  label="Last Trade"
+                  value={formatDate(detail.property.lastTradeAt)}
+                />
+                <Pressable style={styles.secondaryButton} onPress={recompute}>
+                  <Text style={styles.secondaryButtonText}>Recompute</Text>
+                </Pressable>
+              </View>
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Open Sell Orders</Text>
+                {detail.sellOrders.map((order) => (
+                  <View key={order.id} style={styles.card}>
+                    <DetailRow label="Remaining" value={`${order.remainingShares}`} />
+                    <DetailRow label="Ask" value={`$${order.askPricePerShare}`} />
+                    <DetailRow
+                      label="Optimized"
+                      value={
+                        order.optimizedPricePerShare
+                          ? `$${order.optimizedPricePerShare}`
+                          : "—"
+                      }
+                    />
+                    <DetailRow label="Strategy" value={order.strategy ?? "—"} />
+                    <Pressable
+                      style={styles.secondaryButton}
+                      onPress={() => sendTargeting(order.id)}
+                    >
+                      <Text style={styles.secondaryButtonText}>Send Alerts</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Recommended Actions</Text>
+                <Text style={styles.helperText}>
+                  Consider FAST_EXIT for open orders to improve fill rate.
+                </Text>
+                <Text style={styles.helperText}>
+                  Send targeted alerts to top buyers to boost liquidity.
+                </Text>
+              </View>
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Recent Trades</Text>
+                {detail.trades.length ? (
+                  detail.trades.map((trade) => (
+                    <View key={trade.id} style={styles.card}>
+                      <DetailRow label="Shares" value={`${trade.sharesTraded}`} />
+                      <DetailRow label="Price" value={`$${trade.pricePerShare}`} />
+                      <DetailRow
+                        label="Traded At"
+                        value={formatDate(trade.tradedAt)}
+                      />
+                      <DetailRow label="Status" value={trade.status ?? "—"} />
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.helperText}>No recent trades.</Text>
+                )}
+              </View>
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Match Preview</Text>
+                {preview?.matches.length ? (
+                  preview.matches.map((match) => (
+                    <DetailRow
+                      key={`${match.buyOrderId}-${match.sellOrderId}`}
+                      label={`${match.buyOrderId.slice(0, 6)} → ${match.sellOrderId.slice(0, 6)}`}
+                      value={`${match.shares} @ $${match.pricePerShare}`}
+                    />
+                  ))
+                ) : (
+                  <Text style={styles.helperText}>No matches available.</Text>
+                )}
+                <Pressable style={styles.button} onPress={matchOrders}>
+                  <Text style={styles.buttonText}>Match Orders</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+function AdminTargetingScreen({
+  token,
+  onBack,
+  onNavigate,
+  onLogin,
+  onLogout,
+  userLabel,
+  role,
+  canGoBack,
+}: {
+  token: string | null;
+  onBack: () => void;
+  onNavigate: (next: Screen) => void;
+  onLogin: () => void;
+  onLogout: () => void;
+  userLabel: string | null;
+  role: string | null;
+  canGoBack: boolean;
+}) {
+  const [config, setConfig] = useState<TargetingConfig | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const definitions = [
+    {
+      title: "Owns Property Weight",
+      desc: "Points added if buyer already owns shares in this property.",
+    },
+    {
+      title: "View Score Per Count",
+      desc: "Points added per recent view of the property.",
+    },
+    {
+      title: "Max View Score",
+      desc: "Maximum points from views (cap).",
+    },
+    {
+      title: "Similar Holdings Weight",
+      desc: "Points added if buyer owns shares in same city/state.",
+    },
+    {
+      title: "Recent Buyer Weight",
+      desc: "Points added if buyer bought any shares in last 14 days.",
+    },
+    {
+      title: "Minimum Score To Target",
+      desc: "Minimum score required to receive an alert.",
+    },
+    {
+      title: "Max Buyers Per Order",
+      desc: "Maximum number of buyers alerted per sell order.",
+    },
+    {
+      title: "Cooldown Hours",
+      desc: "Minimum hours between alerts per buyer/property.",
+    },
+  ];
+
+  useEffect(() => {
+    if (!token) return;
+    fetchJson<TargetingConfig>("/admin/targeting/config", token)
+      .then(setConfig)
+      .catch((error: any) =>
+        setMessage(error?.message || "Failed to load targeting config")
+      );
+  }, [token]);
+
+  async function save() {
+    if (!token || !config) return;
+    await fetchJson("/admin/targeting/config", token, {
+      method: "PUT",
+      body: JSON.stringify(config),
+    });
+    setMessage("Targeting rules updated.");
+  }
+
+  return (
+    <View style={styles.screen}>
+      <HeaderBar
+        title="Targeting Rules"
+        subtitle="Admin targeting configuration."
+        canGoBack={canGoBack}
+        onBack={onBack}
+        onLogout={onLogout}
+        userLabel={userLabel}
+        role={role}
+      />
+      <AppTabs active="admin-targeting" onNavigate={onNavigate} />
+      {!token ? (
+        <View style={styles.card}>
+          <Text style={styles.subtitle}>Login required for admin actions.</Text>
+          <Pressable style={styles.button} onPress={onLogin}>
+            <Text style={styles.buttonText}>Go to Login</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.listContent}>
+          {message && <Text style={styles.helperText}>{message}</Text>}
+          {config && (
+            <View style={styles.card}>
+              {Object.entries(config).map(([key, value]) => (
+                <View key={key}>
+                  <Text style={styles.label}>{key}</Text>
+                  <TextInput
+                    style={styles.input}
+                    keyboardType="numeric"
+                    value={`${value}`}
+                    onChangeText={(text) =>
+                      setConfig({ ...config, [key]: Number(text) } as TargetingConfig)
+                    }
+                  />
+                </View>
+              ))}
+              <Pressable style={styles.button} onPress={save}>
+                <Text style={styles.buttonText}>Save</Text>
+              </Pressable>
+            </View>
+          )}
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Definitions</Text>
+            {definitions.map((item) => (
+              <View key={item.title} style={styles.formSection}>
+                <Text style={styles.label}>{item.title}</Text>
+                <Text style={styles.helperText}>{item.desc}</Text>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+function AdminMarketRulesScreen({
+  token,
+  onBack,
+  onNavigate,
+  onLogin,
+  onLogout,
+  userLabel,
+  role,
+  canGoBack,
+}: {
+  token: string | null;
+  onBack: () => void;
+  onNavigate: (next: Screen) => void;
+  onLogin: () => void;
+  onLogout: () => void;
+  userLabel: string | null;
+  role: string | null;
+  canGoBack: boolean;
+}) {
+  const [rules, setRules] = useState<MarketRules | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const definitions = [
+    {
+      title: "Liquidity Thresholds",
+      desc: "Controls how scores map to Good/Mid/Low on the dashboard.",
+    },
+    {
+      title: "Lookback Days",
+      desc: "Window used to calculate trade activity and VWAP.",
+    },
+    {
+      title: "Liquidity Weights",
+      desc: "Weights for trade volume, time-to-fill, and deviation. Must sum to 100.",
+    },
+    {
+      title: "Trade Count Cap",
+      desc: "Maximum trades counted toward liquidity trade score.",
+    },
+    {
+      title: "Max Time-to-Fill Hours",
+      desc: "Upper bound used to normalize time-to-fill scoring.",
+    },
+    {
+      title: "Reference Price Weights",
+      desc: "Blends primary reference, secondary VWAP, and NAV proxy. Must sum to 1.0.",
+    },
+    {
+      title: "Strategy Multipliers",
+      desc: "Multipliers applied to optimized prices by strategy.",
+    },
+    {
+      title: "Max Price Cap",
+      desc: "Upper cap for MAX_PRICE as a multiple of reference.",
+    },
+  ];
+
+  useEffect(() => {
+    if (!token) return;
+    fetchJson<MarketRules>("/admin/market-rules", token)
+      .then(setRules)
+      .catch((error: any) =>
+        setMessage(error?.message || "Failed to load market rules")
+      );
+  }, [token]);
+
+  async function save() {
+    if (!token || !rules) return;
+    await fetchJson("/admin/market-rules", token, {
+      method: "PUT",
+      body: JSON.stringify(rules),
+    });
+    setMessage("Market rules updated.");
+  }
+
+  return (
+    <View style={styles.screen}>
+      <HeaderBar
+        title="Market Rules"
+        subtitle="Admin liquidity and pricing rules."
+        canGoBack={canGoBack}
+        onBack={onBack}
+        onLogout={onLogout}
+        userLabel={userLabel}
+        role={role}
+      />
+      <AppTabs active="admin-market-rules" onNavigate={onNavigate} />
+      {!token ? (
+        <View style={styles.card}>
+          <Text style={styles.subtitle}>Login required for admin actions.</Text>
+          <Pressable style={styles.button} onPress={onLogin}>
+            <Text style={styles.buttonText}>Go to Login</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.listContent}>
+          {message && <Text style={styles.helperText}>{message}</Text>}
+          {rules && (
+            <View style={styles.card}>
+              <View style={styles.formSection}>
+                <Text style={styles.label}>Validation rules</Text>
+                <Text style={styles.helperText}>
+                  Reference weights sum to 1.0 · Liquidity weights sum to 100 · Good
+                  threshold &gt; Mid threshold
+                </Text>
+              </View>
+              {Object.entries(rules).map(([key, value]) => (
+                <View key={key}>
+                  <Text style={styles.label}>{key}</Text>
+                  <TextInput
+                    style={styles.input}
+                    keyboardType="numeric"
+                    value={`${value}`}
+                    onChangeText={(text) =>
+                      setRules({ ...rules, [key]: Number(text) } as MarketRules)
+                    }
+                  />
+                </View>
+              ))}
+              <Pressable style={styles.button} onPress={save}>
+                <Text style={styles.buttonText}>Save</Text>
+              </Pressable>
+            </View>
+          )}
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Definitions</Text>
+            {definitions.map((item) => (
+              <View key={item.title} style={styles.formSection}>
+                <Text style={styles.label}>{item.title}</Text>
+                <Text style={styles.helperText}>{item.desc}</Text>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+function AdminListersScreen({
+  token,
+  onBack,
+  onNavigate,
+  onLogin,
+  onLogout,
+  userLabel,
+  role,
+  canGoBack,
+}: {
+  token: string | null;
+  onBack: () => void;
+  onNavigate: (next: Screen) => void;
+  onLogin: () => void;
+  onLogout: () => void;
+  userLabel: string | null;
+  role: string | null;
+  canGoBack: boolean;
+}) {
+  const [listers, setListers] = useState<ListerOverview[]>([]);
+  const [selectedListerId, setSelectedListerId] = useState<string>("");
+  const [selectedListingIds, setSelectedListingIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [targetListerId, setTargetListerId] = useState<string>("");
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function loadListers() {
+    if (!token) return;
+    const data = await fetchJson<ListerOverview[]>("/admin/listers/listings", token);
+    setListers(data);
+    if (!selectedListerId && data.length > 0) {
+      setSelectedListerId(data[0].id);
+    }
+  }
+
+  useEffect(() => {
+    void loadListers();
+  }, [token]);
+
+  const selectedLister = listers.find((l) => l.id === selectedListerId);
+
+  function toggleListing(id: string) {
+    setSelectedListingIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function reassign() {
+    if (!token || !targetListerId || selectedListingIds.size === 0) {
+      setMessage("Select listings and a target lister.");
+      return;
+    }
+    await fetchJson("/admin/listers/reassign", token, {
+      method: "POST",
+      body: JSON.stringify({
+        listingIds: Array.from(selectedListingIds),
+        targetListerId,
+      }),
+    });
+    setMessage("Listings reassigned.");
+    setSelectedListingIds(new Set());
+    await loadListers();
+  }
+
+  return (
+    <View style={styles.screen}>
+      <HeaderBar
+        title="Listers"
+        subtitle="Bulk reassign listings."
+        canGoBack={canGoBack}
+        onBack={onBack}
+        onLogout={onLogout}
+        userLabel={userLabel}
+        role={role}
+      />
+      <AppTabs active="admin-listers" onNavigate={onNavigate} />
+      {!token ? (
+        <View style={styles.card}>
+          <Text style={styles.subtitle}>Login required for admin actions.</Text>
+          <Pressable style={styles.button} onPress={onLogin}>
+            <Text style={styles.buttonText}>Go to Login</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.listContent}>
+          {message && <Text style={styles.helperText}>{message}</Text>}
+          <Text style={styles.sectionTitle}>Listers</Text>
+          {listers.map((lister) => (
+            <Pressable
+              key={lister.id}
+              style={[
+                styles.card,
+                lister.id === selectedListerId && styles.cardSelected,
+              ]}
+              onPress={() => setSelectedListerId(lister.id)}
+            >
+              <Text style={styles.propertyTitle}>
+                {lister.email || lister.phone || lister.id.slice(0, 6)}
+              </Text>
+              <DetailRow label="Listings" value={`${lister.listingCount}`} />
+            </Pressable>
+          ))}
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Target Lister</Text>
+            {listers.map((lister) => (
+              <Pressable
+                key={lister.id}
+                style={[
+                  styles.optionChip,
+                  targetListerId === lister.id && styles.optionChipActive,
+                ]}
+                onPress={() => setTargetListerId(lister.id)}
+              >
+                <Text
+                  style={[
+                    styles.optionChipText,
+                    targetListerId === lister.id && styles.optionChipTextActive,
+                  ]}
+                >
+                  {lister.email || lister.phone || lister.id.slice(0, 6)}
+                </Text>
+              </Pressable>
+            ))}
+            <Pressable style={styles.button} onPress={reassign}>
+              <Text style={styles.buttonText}>Move Selected</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.sectionTitle}>Listings</Text>
+          {selectedLister?.listings.map((listing) => (
+            <View key={listing.id} style={styles.card}>
+              <View style={styles.inlineRow}>
+                <Pressable onPress={() => toggleListing(listing.id)}>
+                  <Text style={styles.helperText}>
+                    {selectedListingIds.has(listing.id) ? "☑" : "☐"}
+                  </Text>
+                </Pressable>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.propertyTitle}>
+                    {listing.property.address1}
+                  </Text>
+                  <Text style={styles.propertySubtitle}>
+                    {listing.property.city}, {listing.property.state}
+                  </Text>
+                </View>
+              </View>
+              <DetailRow label="Status" value={listing.status} />
+              <DetailRow label="Asking Price" value={`$${listing.askingPrice}`} />
+            </View>
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
 function RentalApplicationsScreen({
   onBack,
   onNavigate,
@@ -2654,7 +3933,7 @@ function AppTabs({
     | "import-list"
     | "portfolio"
     | "alerts"
-    | "market"
+    | "market-orders"
     | "listings"
     | "new-listing"
     | "lister-properties"
@@ -2664,12 +3943,16 @@ function AppTabs({
     | "kyc"
     | "admin-kyc"
     | "admin-mls"
+    | "admin-liquidity"
+    | "admin-targeting"
+    | "admin-market-rules"
+    | "admin-listers"
     | "rental-applications";
   onNavigate: (next: Screen) => void;
 }) {
   const tabs: { key: typeof active; label: string; target: Screen }[] = [
     { key: "properties", label: "Properties", target: { name: "properties" } },
-    { key: "market", label: "Market", target: { name: "market" } },
+    { key: "market-orders", label: "Market", target: { name: "market-orders" } },
     { key: "listings", label: "My Listings", target: { name: "listings" } },
     { key: "new-listing", label: "New Listing", target: { name: "new-listing" } },
     { key: "import-list", label: "Import", target: { name: "import-list" } },
@@ -2686,6 +3969,10 @@ function AppTabs({
     { key: "kyc", label: "KYC", target: { name: "kyc" } },
     { key: "admin-kyc", label: "KYC Admin", target: { name: "admin-kyc" } },
     { key: "admin-mls", label: "MLS Admin", target: { name: "admin-mls" } },
+    { key: "admin-liquidity", label: "Liquidity", target: { name: "admin-liquidity" } },
+    { key: "admin-targeting", label: "Targeting", target: { name: "admin-targeting" } },
+    { key: "admin-market-rules", label: "Market Rules", target: { name: "admin-market-rules" } },
+    { key: "admin-listers", label: "Listers", target: { name: "admin-listers" } },
     { key: "rental-applications", label: "My Apps", target: { name: "rental-applications" } },
   ];
 
@@ -2718,6 +4005,7 @@ function PropertyDetailScreen({
   token,
   propertyId,
   onBack,
+  onNavigate,
   onLogout,
   userLabel,
   role,
@@ -2726,6 +4014,7 @@ function PropertyDetailScreen({
   token: string | null;
   propertyId: string;
   onBack: () => void;
+  onNavigate: (next: Screen) => void;
   onLogout: () => void;
   userLabel: string | null;
   role: string | null;
@@ -2821,6 +4110,17 @@ function PropertyDetailScreen({
                   </>
                 )}
               </View>
+              <Pressable
+                style={styles.button}
+                onPress={() =>
+                  onNavigate({
+                    name: "market-orders",
+                    propertyId: property.id,
+                  })
+                }
+              >
+                <Text style={styles.buttonText}>Buy Shares</Text>
+              </Pressable>
             </>
           )}
         </>
@@ -3013,9 +4313,46 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
   metaText: {
     fontSize: 12,
     color: "#5d6675",
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#1c2430",
+  },
+  optionChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#d9dee7",
+    backgroundColor: "#ffffff",
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  optionChipActive: {
+    backgroundColor: "#2b4c7e",
+    borderColor: "#2b4c7e",
+  },
+  optionChipText: {
+    fontSize: 12,
+    color: "#2b4c7e",
+    fontWeight: "600",
+  },
+  optionChipTextActive: {
+    color: "#ffffff",
+  },
+  cardSelected: {
+    borderColor: "#2b4c7e",
+    borderWidth: 2,
   },
   error: {
     color: "#b42318",

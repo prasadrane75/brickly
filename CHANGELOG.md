@@ -5,6 +5,14 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- TBD
+
+### Fixed
+- TBD
+
+## [v1.0.0-baseline] - 2026-02-10
+
+### Added
 - Logo in navigation on all pages.
 - Homepage hero with backsplash image.
 - Backsplash patterns and styling tweaks.

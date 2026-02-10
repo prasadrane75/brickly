@@ -211,6 +211,7 @@ async function main() {
           totalShares,
           sharesAvailable: totalShares,
           referencePricePerShare: referencePrice,
+          lastReferenceUpdateAt: new Date(),
         },
       });
 

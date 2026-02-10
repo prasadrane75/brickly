@@ -34,7 +34,7 @@ echo "==> Deploy API"
 API_URL=$(gcloud run deploy api \
   --image "${API_IMAGE}" \
   --region "${REGION}" \
-  --set-env-vars DATABASE_URL="${DB_URL}",JWT_SECRET="${JWT_SECRET}" \
+  --set-env-vars DATABASE_URL="${DB_URL}",JWT_SECRET="${JWT_SECRET}",DISABLE_EMAIL_VERIFICATION=true \
   --allow-unauthenticated \
   --format="value(status.url)")
 echo "API_URL=${API_URL}"

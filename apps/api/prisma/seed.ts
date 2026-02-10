@@ -5,6 +5,7 @@ import {
   UserRole,
   PropertyStatus,
   ListingStatus,
+  SellOrderStatus,
 } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -39,6 +40,25 @@ async function main() {
     create: {
       email: "investor@fractional.app",
       passwordHash: investorPasswordHash,
+      role: UserRole.INVESTOR,
+      emailVerified: true,
+      kycProfile: {
+        create: {
+          status: KycStatus.APPROVED,
+          data: { source: "seed" },
+          submittedAt: new Date(),
+        },
+      },
+    },
+  });
+
+  const buyerPasswordHash = await bcrypt.hash("buyer-password", 12);
+  const buyer = await prisma.user.upsert({
+    where: { email: "buyer@fractional.app" },
+    update: { emailVerified: true },
+    create: {
+      email: "buyer@fractional.app",
+      passwordHash: buyerPasswordHash,
       role: UserRole.INVESTOR,
       emailVerified: true,
       kycProfile: {
@@ -129,6 +149,7 @@ async function main() {
           totalShares: input.shareClass.totalShares,
           sharesAvailable: input.shareClass.totalShares,
           referencePricePerShare: input.shareClass.referencePricePerShare,
+          lastReferenceUpdateAt: new Date(),
         },
       });
 
@@ -149,13 +170,13 @@ async function main() {
   const listingOne = await createListing({
     property: {
       type: "HOUSE",
-      address1: "100 Harbor Way",
-      city: "San Diego",
-      state: "CA",
-      zip: "92101",
-      squareFeet: 1800,
-      bedrooms: 3,
-      bathrooms: 2,
+      address1: "10917 Stonewell",
+      city: "Glen Allen",
+      state: "VA",
+      zip: "23060",
+      squareFeet: 3700,
+      bedrooms: 5,
+      bathrooms: 4,
       targetRaise: 1500000,
       estMonthlyRent: 6500,
     },
@@ -230,6 +251,88 @@ async function main() {
         userId: investor.id,
         shareClassId: shareClass.id,
         sharesOwned: 500,
+      },
+    });
+  });
+
+  const listingShareClass = await prisma.shareClass.findUnique({
+    where: { propertyId: listingOne.property.id },
+  });
+
+  if (!listingShareClass) {
+    throw new Error("Missing share class for listing one");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    if (listingShareClass.sharesAvailable < 50) {
+      throw new Error("Not enough shares available to seed buyer holding");
+    }
+
+    await tx.shareClass.update({
+      where: { id: listingShareClass.id },
+      data: { sharesAvailable: listingShareClass.sharesAvailable - 50 },
+    });
+
+    await tx.holding.upsert({
+      where: {
+        userId_shareClassId: {
+          userId: buyer.id,
+          shareClassId: listingShareClass.id,
+        },
+      },
+      update: { sharesOwned: 50 },
+      create: {
+        userId: buyer.id,
+        shareClassId: listingShareClass.id,
+        sharesOwned: 50,
+      },
+    });
+
+    await tx.propertyView.upsert({
+      where: {
+        userId_propertyId: {
+          userId: buyer.id,
+          propertyId: listingOne.property.id,
+        },
+      },
+      update: { viewCount: { increment: 3 }, lastViewedAt: new Date() },
+      create: {
+        userId: buyer.id,
+        propertyId: listingOne.property.id,
+        viewCount: 3,
+      },
+    });
+
+    const sellOrder = await tx.sellOrder.create({
+      data: {
+        userId: investor.id,
+        propertyId: listingOne.property.id,
+        sharesForSale: 100,
+        remainingShares: 100,
+        askPricePerShare: 190,
+        status: SellOrderStatus.OPEN,
+      },
+    });
+
+    await tx.trade.create({
+      data: {
+        sellOrderId: sellOrder.id,
+        propertyId: listingOne.property.id,
+        buyerUserId: buyer.id,
+        sellerUserId: investor.id,
+        sharesTraded: 10,
+        pricePerShare: 188,
+      },
+    });
+
+    await tx.buyOrder.create({
+      data: {
+        buyerUserId: buyer.id,
+        propertyId: listingOne.property.id,
+        orderType: "LIMIT",
+        sharesRequested: 150,
+        maxPricePerShare: 192,
+        status: "OPEN",
       },
     });
   });

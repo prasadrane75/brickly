@@ -5,6 +5,7 @@ type Holding = {
   id: string;
   sharesOwned: number;
   percent: number;
+  avgBuyPricePerShare?: number | null;
   property: {
     id: string;
     address1: string;
@@ -16,6 +17,7 @@ type Holding = {
     id: string;
     totalShares: number;
     sharesAvailable: number;
+    referencePricePerShare: number;
   };
 };
 
@@ -79,6 +81,8 @@ export default function PortfolioPage() {
               <th>Property</th>
               <th>Shares Owned</th>
               <th>Ownership</th>
+              <th>Avg Buy Price</th>
+              <th>Reference Price</th>
               <th className="action-cell">Actions</th>
             </tr>
           </thead>
@@ -92,7 +96,7 @@ export default function PortfolioPage() {
             ))}
             {holdings.length === 0 && !loading && (
               <tr>
-                <td colSpan={4} className="muted">
+                <td colSpan={6} className="muted">
                   No holdings yet.
                 </td>
               </tr>
@@ -133,6 +137,16 @@ function HoldingRow({
         </td>
         <td>{holding.sharesOwned}</td>
         <td>{(holding.percent * 100).toFixed(2)}%</td>
+        <td>
+          {holding.avgBuyPricePerShare
+            ? `$${holding.avgBuyPricePerShare.toFixed(2)}`
+            : "—"}
+        </td>
+        <td>
+          {holding.shareClass.referencePricePerShare
+            ? `$${Number(holding.shareClass.referencePricePerShare).toFixed(2)}`
+            : "—"}
+        </td>
         <td className="action-cell">
           <div className="import-actions">
             <button
@@ -147,7 +161,7 @@ function HoldingRow({
       </tr>
       {isSelling && (
         <tr>
-          <td colSpan={4}>
+          <td colSpan={6}>
             <form
               onSubmit={(event) =>
                 onSell(event, holding.property.id, sharesForSale, askPrice)

@@ -1,13 +1,17 @@
 import type { AppProps } from "next/app";
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { clearToken, getToken, getTokenPayload } from "../lib/api";
+import { apiFetch, clearToken, getToken, getTokenPayload } from "../lib/api";
 import "../styles/globals.css";
 import "../styles/import.css";
+import "../styles/liquidity.css";
 
 export default function App({ Component, pageProps }: AppProps) {
+  const router = useRouter();
   const [hasToken, setHasToken] = useState(false);
   const [role, setRole] = useState<string | null>(null);
+  const [unreadAlerts, setUnreadAlerts] = useState<number>(0);
 
   useEffect(() => {
     function refresh() {
@@ -24,9 +28,24 @@ export default function App({ Component, pageProps }: AppProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!hasToken) {
+      setUnreadAlerts(0);
+      return;
+    }
+
+    apiFetch<{ readAt?: string | null }[]>("/notifications")
+      .then((items) => {
+        const unread = items.filter((item) => !item.readAt).length;
+        setUnreadAlerts(unread);
+      })
+      .catch(() => setUnreadAlerts(0));
+  }, [hasToken]);
+
   function handleLogout() {
     clearToken();
     setHasToken(false);
+    router.replace("/login");
   }
 
   return (
@@ -46,9 +65,9 @@ export default function App({ Component, pageProps }: AppProps) {
               Portfolio
             </Link>
           )}
-          {role === "INVESTOR" && (
-            <Link href="/market" className="nav-link">
-              Market
+          {hasToken && role !== "TENANT" && (
+            <Link href="/market-orders" className="nav-link">
+              Market Orders
             </Link>
           )}
           {role === "TENANT" && (
@@ -67,8 +86,23 @@ export default function App({ Component, pageProps }: AppProps) {
               <Link href="/admin/rental-applications" className="nav-link">
                 Rental Applications
               </Link>
+              <Link href="/admin/users" className="nav-link">
+                Users
+              </Link>
               <Link href="/admin/mls-listings" className="nav-link">
                 MLS Listings
+              </Link>
+              <Link href="/admin/listers" className="nav-link">
+                Listers
+              </Link>
+              <Link href="/admin/targeting" className="nav-link">
+                Targeting
+              </Link>
+              <Link href="/admin/market-rules" className="nav-link">
+                Market Rules
+              </Link>
+              <Link href="/admin/liquidity" className="nav-link">
+                Liquidity
               </Link>
             </>
           )}
@@ -95,7 +129,10 @@ export default function App({ Component, pageProps }: AppProps) {
           <div className="nav-right-stack">
             <span className="muted">Role: {role ?? "Unknown"}</span>
             <Link href="/alerts" className="nav-link">
-              Alerts <span className="nav-badge">3</span>
+              Alerts{" "}
+              {unreadAlerts > 0 && (
+                <span className="nav-badge">{unreadAlerts}</span>
+              )}
             </Link>
             <button className="button secondary" onClick={handleLogout}>
               Logout

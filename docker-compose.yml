@@ -32,6 +32,7 @@ services:
       DATABASE_URL: postgres://app:app@db:5432/fractional
       JWT_SECRET: dev-secret
       CORS_ORIGINS: http://localhost:3000,http://192.168.1.177:3000,https://app.bricklyusa.com,https://web-felac66u4a-ue.a.run.app
+      DISABLE_EMAIL_VERIFICATION: "true"
       SMTP_HOST: smtp.office365.com
       SMTP_PORT: "587"
       SMTP_USER: ${SMTP_USER}

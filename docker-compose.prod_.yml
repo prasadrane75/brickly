@@ -21,6 +21,8 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:fBoBZGcngKkooZOx@db.gbsrdcpmfchhgmhhnyad.supabase.co:5432/postgres
       JWT_SECRET: CNrhDjt/ZvpI5ADaFtK0xE93HTFZsfpBkC/Z75mYDPF1e6vobbOZ3lZiXNmYyXL3
+      CORS_ORIGINS: https://web-107281602846.us-east1.run.app,https://app.bricklyusa.com
+      DISABLE_EMAIL_VERIFICATION: "true"
     ports:
       - "4000:4000"
 
@@ -31,7 +33,7 @@ services:
     depends_on:
       - api
     environment:
-      NEXT_PUBLIC_API_BASE_URL=https://api.bricklyusa.com
+      NEXT_PUBLIC_API_BASE_URL: https://api.bricklyusa.com
     ports:
       - "3000:3000"
 
