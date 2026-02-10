@@ -15,21 +15,21 @@ Status: PARTIAL PASS
 
 ### Results
 API build: PASS
-API tests: FAIL
+API tests: PASS (with skips)
 Web build: PASS
 Web e2e tests: FAIL
 
 ### Failures and Warnings
 API tests:
-- `apps/api/src/__tests__/smoke.test.ts` failed due to `fetch failed`, likely because the API server is not running.
+- All tests passed after rerun with local API server.
 - Smoke tests that require `ADMIN_EMAIL` and `ADMIN_PASSWORD` were skipped.
 
 Web build:
 - Next.js warning about inferred workspace root and multiple lockfiles.
 
 Web e2e tests:
-- Playwright browser binaries not installed. Suggested fix: run `npx playwright install`.
+- Playwright browsers installed.
+- Two tests failed because `ADMIN_EMAIL` and `ADMIN_PASSWORD` are not set.
 
 ## Environment Notes
 - No environment variables for admin credentials were set when running tests.
-- Playwright browsers are not present in the local cache.
