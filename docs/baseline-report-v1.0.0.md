@@ -29,7 +29,7 @@ Web build:
 
 Web e2e tests:
 - Playwright browsers installed.
-- Two tests failed because `ADMIN_EMAIL` and `ADMIN_PASSWORD` are not set.
+- Two tests failed due to timeout waiting for login form field label `Email or phone`.
 
 ## Environment Notes
 - No environment variables for admin credentials were set when running tests.
