@@ -7,6 +7,15 @@ Tag: v1.0.0-baseline (pending)
 ## Build and Test Summary
 Status: PARTIAL PASS
 
+## Recompute Metrics Behavior
+Endpoint: `POST /admin/liquidity/recompute?propertyId=...`
+- Recomputes reference price from existing reference, recent trades VWAP, and listing NAV proxy.
+- Recomputes liquidity score from recent trade count, average time-to-fill, and ask deviation vs reference.
+- Updates `optimizedPricePerShare` on all open sell orders using liquidity + strategy adjustments.
+
+Endpoint: `POST /admin/liquidity/recompute-all`
+- Performs the same recomputation for each property with open/partial sell orders.
+
 ### Commands Executed
 - `npm --workspace apps/api run build`
 - `npm --workspace apps/api run test`

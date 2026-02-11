@@ -26,6 +26,8 @@ This baseline captures Phase 2A/2B features and flows as implemented in the repo
 - Reference price uses weighted inputs and updates `ShareClass.referencePricePerShare` and `ShareClass.lastReferenceUpdateAt`.
 - Liquidity score computed from trade count, time-to-fill, and ask deviation and updates `Property.liquidityScore`.
 - Optimized sell order price respects liquidity and strategy adjustments and caps as defined.
+- Recompute metrics endpoint updates reference price, liquidity score, and optimized prices for open sell orders.
+- Recompute-all performs the same updates across all properties with open/partial sell orders.
 - Targeting run creates `TargetedOffer` and `Notification` records and returns top 20 buyers.
 - Notifications endpoints enforce ownership and support read and read-all operations.
 - Admin liquidity pages render KPI cards, tables, and detail data per the Phase2AB flows.
@@ -34,6 +36,9 @@ This baseline captures Phase 2A/2B features and flows as implemented in the repo
 ## Requirements-to-Code Map
 Requirement: Liquidity + Pricing (API)
 Code: `apps/api/src/pricing/`, `apps/api/src/market/`, `apps/api/src/index.ts`, `apps/api/prisma/schema.prisma`
+
+Requirement: Recompute Metrics (Admin)
+Code: `apps/api/src/index.ts`, `apps/api/src/pricing/referencePrice.ts`, `apps/api/src/pricing/liquidityScore.ts`, `apps/api/src/pricing/optimizeSellOrder.ts`
 
 Requirement: Targeting + Notifications (API)
 Code: `apps/api/src/targeting/`, `apps/api/src/market/`, `apps/api/src/index.ts`, `apps/api/prisma/schema.prisma`
