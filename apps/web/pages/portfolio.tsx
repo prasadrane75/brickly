@@ -1,209 +1,163 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
+import type { ApiResponse } from "../shared/api-types";
+import { ActivityList } from "../components/dashboard/ActivityList";
+import { HoldingCard } from "../components/dashboard/HoldingCard";
+import { PageHero } from "../components/ui/PageHero";
+import { MetricCard } from "../components/ui/MetricCard";
+import { AllocationBar } from "../components/ui/AllocationBar";
+import { FutureBadge } from "../components/ui/FutureBadge";
+import { SectionHeader } from "../components/ui/SectionHeader";
+import { ErrorState } from "../components/ui/ErrorState";
+import { LoadingState } from "../components/ui/LoadingState";
+import { formatCurrency } from "../shared/format";
 
-type Holding = {
-  id: string;
-  sharesOwned: number;
-  percent: number;
-  avgBuyPricePerShare?: number | null;
-  property: {
-    id: string;
-    address1: string;
-    city: string;
-    state: string;
-    zip: string;
+type PortfolioSummary = ApiResponse<{
+  summary: {
+    totalPortfolioValue: number;
+    totalInvestedAmount: number;
+    totalUnrealizedChange: number;
+    estimatedAnnualIncome: number;
   };
-  shareClass: {
+  currentHoldings: Array<{
     id: string;
-    totalShares: number;
-    sharesAvailable: number;
-    referencePricePerShare: number;
-  };
-};
+    sharesOwned: number;
+    estimatedValue: number;
+    estimatedMonthlyIncome: number;
+    allocationWeight: number;
+    property: {
+      id: string;
+      name: string;
+      city: string;
+      state: string;
+      status: string;
+      thumbnailUrl: string | null;
+      verificationStatus: string;
+    };
+    shareClass: {
+      referencePricePerShare: number;
+    };
+  }>;
+  allocationByProperty: Array<{
+    propertyId: string;
+    propertyName: string;
+    marketValue: number;
+    allocationPercent: number;
+  }>;
+}>;
 
 export default function PortfolioPage() {
-  const [holdings, setHoldings] = useState<Holding[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [summary, setSummary] = useState<PortfolioSummary["data"] | null>(null);
   const [loading, setLoading] = useState(true);
-
-  function loadHoldings() {
-    setLoading(true);
-    return apiFetch<Holding[]>("/portfolio")
-      .then(setHoldings)
-      .catch((err) => setMessage(err.message))
-      .finally(() => setLoading(false));
-  }
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadHoldings();
+    apiFetch<PortfolioSummary>("/v1/portfolio/summary")
+      .then((response) => setSummary(response.data))
+      .catch((fetchError: any) =>
+        setError(fetchError?.message || "Portfolio unavailable.")
+      )
+      .finally(() => setLoading(false));
   }, []);
 
-  async function handleSell(
-    event: FormEvent,
-    propertyId: string,
-    sharesForSale: number,
-    askPricePerShare: number
-  ) {
-    event.preventDefault();
-    setMessage(null);
-    setStatus("idle");
-    try {
-      await apiFetch("/market/sell-orders", {
-        method: "POST",
-        body: JSON.stringify({ propertyId, sharesForSale, askPricePerShare }),
-      });
-      setMessage("Sell order created.");
-      setStatus("success");
-      await loadHoldings();
-    } catch (error: any) {
-      setMessage(error.message || "Failed to create sell order.");
-      setStatus("error");
-    }
+  if (!summary && loading) {
+    return <LoadingState title="Loading portfolio" description="Fetching positions, allocation, and income estimates." />;
+  }
+
+  if (!summary) {
+    return <ErrorState title="Portfolio unavailable" message={error || "Portfolio data could not be loaded."} />;
   }
 
   return (
-    <main className="import-page">
-      <section className="import-header">
-        <h1>Portfolio</h1>
-        <p>Track your holdings and create sell orders.</p>
+    <main className="screen-page">
+      <PageHero
+        eyebrow="Portfolio"
+        title="Investor portfolio overview"
+        description="Stable backend-driven positions, valuations, and allocation data for demo cards and charts."
+        actions={<FutureBadge label="AI Insights" phase="PHASE_2_AI" />}
+      />
+
+      <section className="dashboard-grid dashboard-metrics-grid">
+        <MetricCard label="Portfolio Value" value={formatCurrency(summary.summary.totalPortfolioValue)} />
+        <MetricCard label="Invested Amount" value={formatCurrency(summary.summary.totalInvestedAmount)} accent="gold" />
+        <MetricCard label="Annual Income" value={formatCurrency(summary.summary.estimatedAnnualIncome)} accent="green" />
       </section>
-      {loading && <p>Loading portfolio...</p>}
-      {message && (
-        <p className={status === "error" ? "status-error" : "status-success"}>
-          {message}
-        </p>
-      )}
-      <div className="import-card">
-        <table className="import-table">
-          <thead>
-            <tr>
-              <th>Property</th>
-              <th>Shares Owned</th>
-              <th>Ownership</th>
-              <th>Avg Buy Price</th>
-              <th>Reference Price</th>
-              <th className="action-cell">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {holdings.map((holding) => (
-              <HoldingRow
+
+      <section className="dashboard-grid dashboard-main-grid">
+        <div className="card dashboard-section">
+          <SectionHeader
+            eyebrow="Current Portfolio"
+            title="Holdings"
+            subtitle="Investor positions across the currently owned property set."
+            aside={<span className="badge subtle">{summary.currentHoldings.length} positions</span>}
+          />
+          <div className="dashboard-card-grid">
+            {summary.currentHoldings.map((holding) => (
+              <HoldingCard
                 key={holding.id}
-                holding={holding}
-                onSell={handleSell}
+                propertyName={holding.property.name}
+                location={`${holding.property.city}, ${holding.property.state}`}
+                status={holding.property.status}
+                sharesOwned={holding.sharesOwned}
+                estimatedValue={holding.estimatedValue}
+                estimatedMonthlyIncome={holding.estimatedMonthlyIncome}
+                allocationWeight={holding.allocationWeight}
+                verificationStatus={holding.property.verificationStatus}
               />
             ))}
-            {holdings.length === 0 && !loading && (
-              <tr>
-                <td colSpan={6} className="muted">
-                  No holdings yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          </div>
+        </div>
+
+        <aside className="card dashboard-section">
+          <SectionHeader
+            eyebrow="Allocation"
+            title="By property"
+            subtitle="Portfolio concentration bars shaped for frontend chart widgets."
+          />
+          <div className="allocation-list">
+            {summary.allocationByProperty.map((item) => (
+              <AllocationBar
+                key={item.propertyId}
+                label={item.propertyName}
+                valueLabel={`${item.allocationPercent.toFixed(1)}%`}
+                percent={item.allocationPercent}
+              />
+            ))}
+          </div>
+          {/* PHASE_2_AI: narrative portfolio concentration and diversification widgets will attach here later. */}
+        </aside>
+      </section>
+
+      <section className="card dashboard-section">
+        <SectionHeader
+          eyebrow="Portfolio Notes"
+          title="Demo briefing"
+          subtitle="The backend already returns deterministic portfolio math, so later AI layers can consume this payload without moving calculation logic into the client."
+          aside={<FutureBadge label="AI Insights" phase="PHASE_2_AI" />}
+        />
+        <ActivityList
+          items={summary.currentHoldings.slice(0, 3)}
+          emptyTitle="No holdings"
+          emptyDescription="Holdings insights will appear here once positions exist."
+          renderItem={(holding) => (
+            <div key={holding.id} className="dashboard-list-row">
+              <div>
+                <strong>{holding.property.name}</strong>
+                <p className="muted">
+                  {holding.sharesOwned} shares · reference{" "}
+                  {formatCurrency(holding.shareClass.referencePricePerShare)} per share
+                </p>
+              </div>
+              <div className="dashboard-list-right">
+                <strong>{formatCurrency(holding.estimatedValue)}</strong>
+                <span className="muted">
+                  Income {formatCurrency(holding.estimatedMonthlyIncome)} / mo
+                </span>
+              </div>
+            </div>
+          )}
+        />
+      </section>
     </main>
-  );
-}
-
-function HoldingRow({
-  holding,
-  onSell,
-}: {
-  holding: Holding;
-  onSell: (
-    event: FormEvent,
-    propertyId: string,
-    sharesForSale: number,
-    askPricePerShare: number
-  ) => void;
-}) {
-  const [sharesForSale, setSharesForSale] = useState(0);
-  const [askPrice, setAskPrice] = useState(0);
-  const [isSelling, setIsSelling] = useState(false);
-
-  return (
-    <>
-      <tr>
-        <td>
-          <div className="property-meta">
-            <span className="address">{holding.property.address1}</span>
-            <span className="muted">
-              {holding.property.city}, {holding.property.state} {holding.property.zip}
-            </span>
-          </div>
-        </td>
-        <td>{holding.sharesOwned}</td>
-        <td>{(holding.percent * 100).toFixed(2)}%</td>
-        <td>
-          {holding.avgBuyPricePerShare
-            ? `$${holding.avgBuyPricePerShare.toFixed(2)}`
-            : "—"}
-        </td>
-        <td>
-          {holding.shareClass.referencePricePerShare
-            ? `$${Number(holding.shareClass.referencePricePerShare).toFixed(2)}`
-            : "—"}
-        </td>
-        <td className="action-cell">
-          <div className="import-actions">
-            <button
-              className="import-primary"
-              type="button"
-              onClick={() => setIsSelling((prev) => !prev)}
-            >
-              {isSelling ? "Close" : "Sell"}
-            </button>
-          </div>
-        </td>
-      </tr>
-      {isSelling && (
-        <tr>
-          <td colSpan={6}>
-            <form
-              onSubmit={(event) =>
-                onSell(event, holding.property.id, sharesForSale, askPrice)
-              }
-              className="form"
-            >
-              <div>
-                <label className="label">Shares to sell</label>
-                <input
-                  className="input"
-                  type="number"
-                  min={1}
-                  value={sharesForSale}
-                  onChange={(e) => setSharesForSale(Number(e.target.value))}
-                />
-              </div>
-              <div>
-                <label className="label">Ask price per share</label>
-                <input
-                  className="input"
-                  type="number"
-                  min={0}
-                  value={askPrice}
-                  onChange={(e) => setAskPrice(Number(e.target.value))}
-                />
-              </div>
-              <div className="button-row">
-                <button type="submit" className="import-primary">
-                  Create Sell Order
-                </button>
-                <button
-                  type="button"
-                  className="import-secondary"
-                  onClick={() => setIsSelling(false)}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </td>
-        </tr>
-      )}
-    </>
   );
 }

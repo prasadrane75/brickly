@@ -6,7 +6,6 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import {
   Prisma,
-  PrismaClient,
   KycStatus,
   UserRole,
   PropertyStatus,
@@ -18,7 +17,10 @@ import {
   SourceType,
 } from "@prisma/client";
 import { z } from "zod";
+import { env } from "./config/env.js";
+import { prisma } from "./db/prisma.js";
 import importRoutes from "./import/import.routes.js";
+import v1Routes from "./modules/v1/router.js";
 import { requireAuth, requireKycApproved } from "./middleware/auth.js";
 import { seedMLSListings } from "./import/import.seed.js";
 import { sendVerificationEmail } from "./email.js";
@@ -29,6 +31,12 @@ import { updateLiquidityScore } from "./pricing/liquidityScore.js";
 import { computeOptimizedPrice } from "./pricing/optimizeSellOrder.js";
 import { getMarketRuleConfig } from "./pricing/marketRules.js";
 import { buildMatchPreview } from "./market/matchOrders.js";
+import { sendError } from "./shared/http/sendError.js";
+import { attachDevRequestLogger } from "./shared/http/devLogger.js";
+import { requireRole } from "./shared/auth/requireRole.js";
+import { aiService, analyticsService, blockchainService } from "./services/index.js";
+import { moduleManifest } from "./modules/module-manifest.js";
+import { documentStorageService } from "./services/storage/document-storage.js";
 
 declare global {
   namespace Express {
@@ -42,25 +50,21 @@ declare global {
 }
 
 const app = express();
-const port = Number(process.env.PORT) || 4000;
-if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = "postgres://app:app@localhost:5433/fractional";
-}
+const port = env.port;
 
-const prisma = new PrismaClient();
-const jwtSecret = process.env.JWT_SECRET || "dev-secret";
-
-const corsOrigins = (process.env.CORS_ORIGINS ||
-  "https://app.bricklyusa.com,http://localhost:3000")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+// Phase 1 architecture note:
+// - Existing investor-demo routes still live here to avoid broad regressions.
+// - Shared config, db, services, and auth utilities are now extracted so future
+//   module routes can move behind stable seams without changing callers.
+void moduleManifest;
+void aiService;
+void blockchainService;
 
 app.use(
   cors({
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (corsOrigins.includes(origin)) return callback(null, true);
+      if (env.corsOrigins.includes(origin)) return callback(null, true);
       return callback(new Error("CORS: origin not allowed"));
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -68,8 +72,14 @@ app.use(
   })
 );
 app.options("*", cors());
+attachDevRequestLogger(app);
 app.use(express.json());
+app.use(
+  "/dev-uploads",
+  express.static(documentStorageService.getPublicRoot())
+);
 app.use("/import", importRoutes);
+app.use("/v1", v1Routes);
 
 app.post(
   "/admin/targeting/run",
@@ -647,29 +657,8 @@ const listingUpdateSchema = z.object({
     .optional(),
 });
 
-function sendError(
-  res: express.Response,
-  status: number,
-  code: string,
-  message: string
-) {
-  return res.status(status).json({ error: { code, message } });
-}
-
 function signToken(payload: { id: string; role: UserRole }) {
-  return jwt.sign(payload, jwtSecret, { expiresIn: "7d" });
-}
-
-function requireRole(roles: UserRole[]) {
-  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    if (!req.user) {
-      return sendError(res, 401, "UNAUTHORIZED", "Unauthorized");
-    }
-    if (!roles.includes(req.user.role)) {
-      return sendError(res, 403, "FORBIDDEN", "Forbidden");
-    }
-    return next();
-  };
+  return jwt.sign(payload, env.jwtSecret, { expiresIn: "7d" });
 }
 
 app.get("/health", async (_req, res) => {
@@ -689,8 +678,7 @@ app.post("/auth/register", async (req, res) => {
   }
 
   const { email, password, role } = parsed.data;
-  const disableEmailVerification =
-    process.env.DISABLE_EMAIL_VERIFICATION === "true";
+  const disableEmailVerification = env.disableEmailVerification;
   const passwordHash = await bcrypt.hash(password, 12);
 
   try {
@@ -727,8 +715,7 @@ app.post("/auth/register", async (req, res) => {
       },
     });
 
-    const webBase = process.env.WEB_BASE_URL || "http://localhost:3000";
-    const verifyUrl = `${webBase}/verify?token=${token}`;
+    const verifyUrl = `${env.webBaseUrl}/verify?token=${token}`;
     try {
       await sendVerificationEmail(user.email!, verifyUrl);
       return res
@@ -736,8 +723,7 @@ app.post("/auth/register", async (req, res) => {
         .json({ message: "Registration successful. Verify your email." });
     } catch (error: any) {
       console.error("Email send failed:", error);
-      const allowDevBypass = process.env.ALLOW_EMAIL_BYPASS === "true";
-      if (allowDevBypass) {
+      if (env.allowEmailBypass) {
         return res.status(201).json({
           message:
             "Email service unavailable. Use the verification link to continue.",
@@ -784,9 +770,7 @@ app.post("/auth/login", async (req, res) => {
     return sendError(res, 401, "INVALID_CREDENTIALS", "Invalid credentials");
   }
 
-  const disableEmailVerification =
-    process.env.DISABLE_EMAIL_VERIFICATION === "true";
-  if (!disableEmailVerification && user.email && !user.emailVerified) {
+  if (!env.disableEmailVerification && user.email && !user.emailVerified) {
     return sendError(
       res,
       403,
@@ -1010,6 +994,67 @@ app.put(
   }
 );
 
+app.get(
+  "/admin/audit-logs",
+  requireAuth,
+  requireRole([UserRole.ADMIN]),
+  async (req, res) => {
+    const action =
+      typeof req.query.action === "string" ? req.query.action.trim() : "";
+    const entityType =
+      typeof req.query.entityType === "string" ? req.query.entityType.trim() : "";
+    const actorType =
+      typeof req.query.actorType === "string" ? req.query.actorType.trim() : "";
+    const limitRaw =
+      typeof req.query.limit === "string" ? Number(req.query.limit) : 50;
+    const take =
+      Number.isFinite(limitRaw) && limitRaw > 0
+        ? Math.min(Math.floor(limitRaw), 200)
+        : 50;
+
+    try {
+      const logs = await prisma.adminAuditLog.findMany({
+        where: {
+          action: action ? (action as any) : undefined,
+          entityType: entityType || undefined,
+          actorType: actorType ? (actorType as any) : undefined,
+        },
+        include: {
+          actorUser: {
+            select: {
+              id: true,
+              email: true,
+              phone: true,
+              role: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take,
+      });
+
+      return res.json(
+        logs.map((log) => ({
+          id: log.id,
+          actorType: log.actorType,
+          action: log.action,
+          entityType: log.entityType,
+          entityId: log.entityId,
+          targetUserId: log.targetUserId,
+          propertyId: log.propertyId,
+          tradeId: log.tradeId,
+          metadata: log.metadata,
+          createdAt: log.createdAt,
+          actorUser: log.actorUser,
+        }))
+      );
+    } catch (error) {
+      console.error("Audit log load failed:", error);
+      return sendError(res, 500, "INTERNAL_ERROR", "Failed to load audit logs");
+    }
+  }
+);
+
 app.post(
   "/invest/buy",
   requireAuth,
@@ -1076,6 +1121,8 @@ app.post(
 );
 
 app.get("/portfolio", requireAuth, async (req, res) => {
+  analyticsService.recordEvent("portfolio.viewed", { userId: req.user?.id });
+
   const holdings = await prisma.holding.findMany({
     where: { userId: req.user!.id },
     include: {
@@ -1684,6 +1731,8 @@ app.post("/kyc/submit", requireAuth, async (req, res) => {
 });
 
 app.get("/notifications", requireAuth, async (req, res) => {
+  analyticsService.recordEvent("notifications.viewed", { userId: req.user?.id });
+
   const notifications = await prisma.notification.findMany({
     where: { userId: req.user!.id },
     orderBy: { createdAt: "desc" },
@@ -1930,7 +1979,7 @@ app.post(
       const openOrders = await prisma.sellOrder.findMany({
         where: {
           propertyId,
-          status: SellOrderStatus.OPEN,
+          status: { in: [SellOrderStatus.OPEN, SellOrderStatus.PARTIAL] },
           remainingShares: { gt: 0 },
         },
       });
@@ -1939,24 +1988,27 @@ app.post(
       const liquidityScore = updatedProperty.liquidityScore;
 
       const updates = await Promise.all(
-        openOrders.map((order) =>
-          prisma.sellOrder.update({
+        openOrders.map((order) => {
+          const optimizedPricePerShare = computeOptimizedPrice({
+            referencePrice,
+            liquidityScore,
+            strategy: order.strategy,
+            config: {
+              strategyMultiplierFastExit: marketRules.strategyMultiplierFastExit,
+              strategyMultiplierBalanced: marketRules.strategyMultiplierBalanced,
+              strategyMultiplierMaxPrice: marketRules.strategyMultiplierMaxPrice,
+              maxPriceCapMultiplier: marketRules.maxPriceCapMultiplier,
+            },
+          });
+
+          return prisma.sellOrder.update({
             where: { id: order.id },
             data: {
-              optimizedPricePerShare: computeOptimizedPrice({
-                referencePrice,
-                liquidityScore,
-                strategy: order.strategy,
-                config: {
-                  strategyMultiplierFastExit: marketRules.strategyMultiplierFastExit,
-                  strategyMultiplierBalanced: marketRules.strategyMultiplierBalanced,
-                  strategyMultiplierMaxPrice: marketRules.strategyMultiplierMaxPrice,
-                  maxPriceCapMultiplier: marketRules.maxPriceCapMultiplier,
-                },
-              }),
+              askPricePerShare: optimizedPricePerShare,
+              optimizedPricePerShare,
             },
-          })
-        )
+          });
+        })
       );
 
       return res.json({
@@ -2000,7 +2052,7 @@ app.post(
         const openOrders = await prisma.sellOrder.findMany({
           where: {
             propertyId,
-            status: SellOrderStatus.OPEN,
+            status: { in: [SellOrderStatus.OPEN, SellOrderStatus.PARTIAL] },
             remainingShares: { gt: 0 },
           },
         });
@@ -2009,27 +2061,30 @@ app.post(
         const liquidityScore = updatedProperty.liquidityScore;
 
         await Promise.all(
-          openOrders.map((order) =>
-            prisma.sellOrder.update({
+          openOrders.map((order) => {
+            const optimizedPricePerShare = computeOptimizedPrice({
+              referencePrice,
+              liquidityScore,
+              strategy: order.strategy,
+              config: {
+                strategyMultiplierFastExit:
+                  marketRules.strategyMultiplierFastExit,
+                strategyMultiplierBalanced:
+                  marketRules.strategyMultiplierBalanced,
+                strategyMultiplierMaxPrice:
+                  marketRules.strategyMultiplierMaxPrice,
+                maxPriceCapMultiplier: marketRules.maxPriceCapMultiplier,
+              },
+            });
+
+            return prisma.sellOrder.update({
               where: { id: order.id },
               data: {
-                optimizedPricePerShare: computeOptimizedPrice({
-                  referencePrice,
-                  liquidityScore,
-                  strategy: order.strategy,
-                  config: {
-                    strategyMultiplierFastExit:
-                      marketRules.strategyMultiplierFastExit,
-                    strategyMultiplierBalanced:
-                      marketRules.strategyMultiplierBalanced,
-                    strategyMultiplierMaxPrice:
-                      marketRules.strategyMultiplierMaxPrice,
-                    maxPriceCapMultiplier: marketRules.maxPriceCapMultiplier,
-                  },
-                }),
+                askPricePerShare: optimizedPricePerShare,
+                optimizedPricePerShare,
               },
-            })
-          )
+            });
+          })
         );
 
         updatedCount += 1;
@@ -2403,7 +2458,15 @@ app.delete(
 );
 
 app.get("/", (_req, res) => {
-  res.send("Fractional Property API");
+  res.json({
+    name: "Brickly API",
+    phase: "phase-1-foundation",
+    modules: moduleManifest.map((module) => module.name),
+    placeholders: {
+      ai: aiService.status,
+      blockchain: blockchainService.status,
+    },
+  });
 });
 
 app.get("/health", (_req, res) => {

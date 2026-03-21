@@ -76,21 +76,81 @@ enum SellOrderStrategy {
 
 enum NotificationType {
   TARGETED_OFFER
+  SYSTEM
+  DOCUMENT
+  TRADE
+}
+
+enum VerificationStatus {
+  UNVERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum DocumentEntityType {
+  PROPERTY
+  TRANSACTION
+  ORDER
+  USER
+}
+
+enum DocumentKind {
+  DEED
+  APPRAISAL
+  INSPECTION
+  OFFERING_MEMO
+  KYC
+  TRADE_CONFIRMATION
+  SUBSCRIPTION_AGREEMENT
+  OTHER
+}
+
+enum DocumentStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum AuditActorType {
+  USER
+  ADMIN
+  SYSTEM
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  APPROVE
+  REJECT
+  LOGIN
+  EXPORT
+  CONFIG_CHANGE
+}
+
+enum PlatformConfigScope {
+  PLATFORM
+  MARKET
+  COMPLIANCE
+  ANALYTICS
+  AI
+  BLOCKCHAIN
 }
 
 model TargetingRuleConfig {
-  id                   String   @id @default(uuid()) @db.Uuid
-  name                 String   @unique
-  ownsPropertyWeight   Int      @default(40)
-  viewScorePerCount    Int      @default(6)
-  maxViewScore         Int      @default(30)
-  similarHoldingsWeight Int     @default(20)
-  recentBuyerWeight    Int      @default(10)
-  minScoreToTarget     Int      @default(1)
-  maxBuyersPerOrder    Int      @default(20)
-  cooldownHours        Int      @default(0)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                    String   @id @default(uuid()) @db.Uuid
+  name                  String   @unique
+  ownsPropertyWeight    Int      @default(40)
+  viewScorePerCount     Int      @default(6)
+  maxViewScore          Int      @default(30)
+  similarHoldingsWeight Int      @default(20)
+  recentBuyerWeight     Int      @default(10)
+  minScoreToTarget      Int      @default(1)
+  maxBuyersPerOrder     Int      @default(20)
+  cooldownHours         Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 model MarketRuleConfig {
@@ -116,29 +176,36 @@ model MarketRuleConfig {
 }
 
 model User {
-  id            String       @id @default(uuid()) @db.Uuid
-  email         String?      @unique
-  phone         String?      @unique
-  passwordHash  String
-  role          UserRole
-  emailVerified Boolean      @default(false)
-  createdAt     DateTime     @default(now())
+  id                 String             @id @default(uuid()) @db.Uuid
+  email              String?            @unique
+  phone              String?            @unique
+  passwordHash       String
+  role               UserRole
+  emailVerified      Boolean            @default(false)
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  aiSummaryCache     String?            @db.Text
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  kycProfile    KycProfile?
-  listings      Listing[]    @relation("UserListings")
-  holdings      Holding[]
-  sellOrders    SellOrder[]
-  buyerTrades   Trade[]      @relation("BuyerTrades")
-  sellerTrades  Trade[]      @relation("SellerTrades")
+  kycProfile         KycProfile?
+  listings           Listing[]           @relation("UserListings")
+  holdings           Holding[]
+  sellOrders         SellOrder[]
+  buyerTrades        Trade[]             @relation("BuyerTrades")
+  sellerTrades       Trade[]             @relation("SellerTrades")
   rentalApplications RentalApplication[] @relation("TenantApplications")
   verificationTokens VerificationToken[]
-  notifications Notification[]
-  targetedOffers TargetedOffer[] @relation("TargetedOffersBuyer")
-  propertyViews  PropertyView[]
-  buyOrders      BuyOrder[]
+  notifications      Notification[]
+  targetedOffers     TargetedOffer[]     @relation("TargetedOffersBuyer")
+  propertyViews      PropertyView[]
+  buyOrders          BuyOrder[]
+  uploadedDocuments  Document[]          @relation("DocumentUploader")
+  auditLogs          AdminAuditLog[]     @relation("AuditActorUser")
 
   @@index([email])
   @@index([phone])
+  @@index([role])
+  @@index([verificationStatus])
 }
 
 model VerificationToken {
@@ -148,7 +215,7 @@ model VerificationToken {
   expiresAt DateTime
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([expiresAt])
@@ -161,44 +228,51 @@ model KycProfile {
   data        Json
   submittedAt DateTime
 
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([status])
 }
 
 model Property {
-  id              String         @id @default(uuid()) @db.Uuid
-  type            PropertyType   @default(HOUSE)
-  address1        String
-  city            String
-  state           String
-  zip             String
-  status          PropertyStatus
-  liquidityScore  Int            @default(50)
-  sourceType      SourceType?
-  sourceRefId     String?
-  importedAt      DateTime?
-  sourceAttribution String?
-  squareFeet      Int?
-  bedrooms        Int?
-  bathrooms       Int?
-  targetRaise     Decimal?       @db.Decimal(14, 2)
-  estMonthlyRent  Decimal?       @db.Decimal(14, 2)
-  lastTradeAt     DateTime?
-  createdAt       DateTime       @default(now())
+  id                 String             @id @default(uuid()) @db.Uuid
+  type               PropertyType       @default(HOUSE)
+  address1           String
+  city               String
+  state              String
+  zip                String
+  status             PropertyStatus
+  liquidityScore     Int                @default(50)
+  sourceType         SourceType?
+  sourceRefId        String?
+  importedAt         DateTime?
+  sourceAttribution  String?
+  squareFeet         Int?
+  bedrooms           Int?
+  bathrooms          Int?
+  targetRaise        Decimal?           @db.Decimal(14, 2)
+  estMonthlyRent     Decimal?           @db.Decimal(14, 2)
+  lastTradeAt        DateTime?
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  aiSummaryCache     String?            @db.Text
+  blockchainTxHash   String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  listings        Listing[]
-  images          PropertyImage[]
-  shareClass      ShareClass?
-  sellOrders      SellOrder[]
-  trades          Trade[]
+  listings           Listing[]
+  images             PropertyImage[]
+  shareClass         ShareClass?
+  sellOrders         SellOrder[]
+  trades             Trade[]
   rentalApplications RentalApplication[]
-  propertyViews  PropertyView[]
-  notifications  Notification[]
-  buyOrders      BuyOrder[]
+  propertyViews      PropertyView[]
+  notifications      Notification[]
+  buyOrders          BuyOrder[]
+  documents          Document[]
 
   @@index([city, state])
   @@index([status])
+  @@index([verificationStatus])
+  @@index([sourceType, status])
 }
 
 enum RentalApplicationStatus {
@@ -208,15 +282,15 @@ enum RentalApplicationStatus {
 }
 
 model RentalApplication {
-  id           String   @id @default(uuid()) @db.Uuid
-  propertyId   String   @db.Uuid
-  tenantUserId String   @db.Uuid
+  id           String                  @id @default(uuid()) @db.Uuid
+  propertyId   String                  @db.Uuid
+  tenantUserId String                  @db.Uuid
   status       RentalApplicationStatus @default(PENDING)
-  rentAmount   Decimal? @db.Decimal(12, 2)
-  createdAt    DateTime @default(now())
+  rentAmount   Decimal?                @db.Decimal(12, 2)
+  createdAt    DateTime                @default(now())
 
-  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  tenant       User     @relation("TenantApplications", fields: [tenantUserId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant   User     @relation("TenantApplications", fields: [tenantUserId], references: [id], onDelete: Cascade)
 
   @@index([propertyId])
   @@index([tenantUserId])
@@ -224,24 +298,24 @@ model RentalApplication {
 }
 
 model MLSListing {
-  id            String   @id @default(uuid()) @db.Uuid
-  externalId    String   @unique
-  sourceType    SourceType
-  address       String
-  city          String
-  state         String
-  zip           String
-  listPrice     Decimal  @db.Decimal(14, 2)
-  rentEstimate  Decimal  @db.Decimal(14, 2)
-  beds          Int
-  baths         Decimal  @db.Decimal(4, 1)
-  sqft          Int
-  yearBuilt     Int
-  images        String[]
-  thumbUrl      String
-  status        String
-  attribution   String
-  createdAt     DateTime @default(now())
+  id           String     @id @default(uuid()) @db.Uuid
+  externalId   String     @unique
+  sourceType   SourceType
+  address      String
+  city         String
+  state        String
+  zip          String
+  listPrice    Decimal    @db.Decimal(14, 2)
+  rentEstimate Decimal    @db.Decimal(14, 2)
+  beds         Int
+  baths        Decimal    @db.Decimal(4, 1)
+  sqft         Int
+  yearBuilt    Int
+  images       String[]
+  thumbUrl     String
+  status       String
+  attribution  String
+  createdAt    DateTime   @default(now())
 
   @@index([sourceType])
   @@index([city, state])
@@ -249,16 +323,18 @@ model MLSListing {
 }
 
 model Listing {
-  id            String        @id @default(uuid()) @db.Uuid
-  propertyId    String        @db.Uuid
-  listerUserId  String        @db.Uuid
-  bonusPercent  Decimal       @db.Decimal(6, 3)
-  askingPrice   Decimal       @db.Decimal(14, 2)
-  status        ListingStatus
-  postedAt      DateTime?
+  id           String        @id @default(uuid()) @db.Uuid
+  propertyId   String        @db.Uuid
+  listerUserId String        @db.Uuid
+  bonusPercent Decimal       @db.Decimal(6, 3)
+  askingPrice  Decimal       @db.Decimal(14, 2)
+  status       ListingStatus
+  postedAt     DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
-  property      Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  lister        User          @relation("UserListings", fields: [listerUserId], references: [id], onDelete: Restrict)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  lister   User     @relation("UserListings", fields: [listerUserId], references: [id], onDelete: Restrict)
 
   @@index([propertyId])
   @@index([listerUserId])
@@ -266,12 +342,12 @@ model Listing {
 }
 
 model PropertyImage {
-  id          String    @id @default(uuid()) @db.Uuid
-  propertyId  String    @db.Uuid
-  url         String
-  sortOrder   Int
+  id         String @id @default(uuid()) @db.Uuid
+  propertyId String @db.Uuid
+  url        String
+  sortOrder  Int
 
-  property    Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@index([propertyId])
   @@index([sortOrder])
@@ -284,22 +360,25 @@ model ShareClass {
   sharesAvailable        Int
   referencePricePerShare Decimal   @db.Decimal(14, 4)
   lastReferenceUpdateAt  DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
-  property               Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  holdings               Holding[]
+  property Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  holdings Holding[]
 
   @@index([propertyId])
 }
 
 model Holding {
-  id            String     @id @default(uuid()) @db.Uuid
-  userId        String     @db.Uuid
-  shareClassId  String     @db.Uuid
-  sharesOwned   Int
-  updatedAt     DateTime   @updatedAt
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  shareClassId String   @db.Uuid
+  sharesOwned  Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  shareClass    ShareClass @relation(fields: [shareClassId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shareClass ShareClass @relation(fields: [shareClassId], references: [id], onDelete: Cascade)
 
   @@unique([userId, shareClassId])
   @@index([userId])
@@ -307,69 +386,89 @@ model Holding {
 }
 
 model SellOrder {
-  id                    String          @id @default(uuid()) @db.Uuid
-  userId                String          @db.Uuid
-  propertyId            String          @db.Uuid
-  sharesForSale         Int
-  remainingShares       Int
-  askPricePerShare      Decimal         @db.Decimal(14, 4)
-  optimizedPricePerShare Decimal?       @db.Decimal(14, 4)
+  id                       String             @id @default(uuid()) @db.Uuid
+  userId                   String             @db.Uuid
+  propertyId               String             @db.Uuid
+  sharesForSale            Int
+  remainingShares          Int
+  askPricePerShare         Decimal            @db.Decimal(14, 4)
+  optimizedPricePerShare   Decimal?           @db.Decimal(14, 4)
   liquidityScoreAtCreation Int?
-  strategy              SellOrderStrategy @default(BALANCED)
-  status                SellOrderStatus
-  createdAt             DateTime        @default(now())
+  strategy                 SellOrderStrategy  @default(BALANCED)
+  status                   SellOrderStatus
+  verificationStatus       VerificationStatus @default(UNVERIFIED)
+  blockchainTxHash         String?
+  aiSummaryCache           String?            @db.Text
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
 
-  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  property              Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  trades                Trade[]
-  targetedOffers        TargetedOffer[]
-  notifications         Notification[]
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property       Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  trades         Trade[]
+  targetedOffers TargetedOffer[]
+  notifications  Notification[]
+  documents      Document[]      @relation("SellOrderDocuments")
 
   @@index([userId])
   @@index([propertyId])
   @@index([status])
+  @@index([createdAt])
+  @@index([verificationStatus])
 }
 
 model Trade {
-  id            String    @id @default(uuid()) @db.Uuid
-  sellOrderId   String    @db.Uuid
-  propertyId    String    @db.Uuid
-  buyerUserId   String    @db.Uuid
-  sellerUserId  String    @db.Uuid
-  sharesTraded  Int
-  pricePerShare Decimal   @db.Decimal(14, 4)
-  tradedAt      DateTime  @default(now())
+  id                 String             @id @default(uuid()) @db.Uuid
+  sellOrderId        String             @db.Uuid
+  propertyId         String             @db.Uuid
+  buyerUserId        String             @db.Uuid
+  sellerUserId       String             @db.Uuid
+  sharesTraded       Int
+  pricePerShare      Decimal            @db.Decimal(14, 4)
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  blockchainTxHash   String?
+  aiSummaryCache     String?            @db.Text
+  tradedAt           DateTime           @default(now())
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  sellOrder     SellOrder @relation(fields: [sellOrderId], references: [id], onDelete: Cascade)
-  property      Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  buyer         User      @relation("BuyerTrades", fields: [buyerUserId], references: [id], onDelete: Restrict)
-  seller        User      @relation("SellerTrades", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  sellOrder SellOrder  @relation(fields: [sellOrderId], references: [id], onDelete: Cascade)
+  property  Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  buyer     User       @relation("BuyerTrades", fields: [buyerUserId], references: [id], onDelete: Restrict)
+  seller    User       @relation("SellerTrades", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  documents Document[] @relation("TradeDocuments")
 
   @@index([sellOrderId])
   @@index([propertyId])
   @@index([buyerUserId])
   @@index([sellerUserId])
+  @@index([tradedAt])
+  @@index([blockchainTxHash])
 }
 
 model BuyOrder {
-  id               String         @id @default(uuid()) @db.Uuid
-  buyerUserId      String         @db.Uuid
-  propertyId       String         @db.Uuid
-  orderType        BuyOrderType
-  sharesRequested  Int
-  filledShares     Int            @default(0)
-  maxPricePerShare Decimal?       @db.Decimal(14, 4)
-  status           BuyOrderStatus @default(OPEN)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id                 String             @id @default(uuid()) @db.Uuid
+  buyerUserId        String             @db.Uuid
+  propertyId         String             @db.Uuid
+  orderType          BuyOrderType
+  sharesRequested    Int
+  filledShares       Int                @default(0)
+  maxPricePerShare   Decimal?           @db.Decimal(14, 4)
+  status             BuyOrderStatus     @default(OPEN)
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  blockchainTxHash   String?
+  aiSummaryCache     String?            @db.Text
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
 
-  buyer            User           @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
-  property         Property       @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  buyer     User       @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  property  Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  documents Document[] @relation("BuyOrderDocuments")
 
   @@index([buyerUserId])
   @@index([propertyId])
   @@index([status])
   @@index([createdAt])
+  @@index([verificationStatus])
 }
 
 model PropertyView {
@@ -380,8 +479,8 @@ model PropertyView {
   lastViewedAt DateTime @updatedAt
   createdAt    DateTime @default(now())
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  property     Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@unique([userId, propertyId])
   @@index([propertyId])
@@ -395,8 +494,8 @@ model TargetedOffer {
   score       Int
   createdAt   DateTime @default(now())
 
-  sellOrder   SellOrder @relation(fields: [sellOrderId], references: [id], onDelete: Cascade)
-  buyer       User      @relation("TargetedOffersBuyer", fields: [buyerUserId], references: [id], onDelete: Cascade)
+  sellOrder SellOrder @relation(fields: [sellOrderId], references: [id], onDelete: Cascade)
+  buyer     User      @relation("TargetedOffersBuyer", fields: [buyerUserId], references: [id], onDelete: Cascade)
 
   @@unique([sellOrderId, buyerUserId])
   @@index([buyerUserId])
@@ -412,12 +511,89 @@ model Notification {
   createdAt   DateTime         @default(now())
   readAt      DateTime?
 
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sellOrder   SellOrder?        @relation(fields: [sellOrderId], references: [id], onDelete: Cascade)
-  property    Property?         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sellOrder SellOrder? @relation(fields: [sellOrderId], references: [id], onDelete: Cascade)
+  property  Property?  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
+  @@unique([userId, sellOrderId, type])
   @@index([userId])
   @@index([createdAt])
   @@index([propertyId])
-  @@unique([userId, sellOrderId, type])
+}
+
+model Document {
+  id                 String             @id @default(uuid()) @db.Uuid
+  uploadedByUserId   String?            @db.Uuid
+  propertyId         String?            @db.Uuid
+  tradeId            String?            @db.Uuid
+  buyOrderId         String?            @db.Uuid
+  sellOrderId        String?            @db.Uuid
+  entityType         DocumentEntityType
+  kind               DocumentKind       @default(OTHER)
+  status             DocumentStatus     @default(ACTIVE)
+  verificationStatus VerificationStatus @default(UNVERIFIED)
+  fileName           String
+  fileUrl            String
+  mimeType           String?
+  fileSizeBytes      Int?
+  aiSummaryCache     String?            @db.Text
+  blockchainTxHash   String?
+  metadata           Json?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  uploadedBy User?      @relation("DocumentUploader", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  property   Property?  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  trade      Trade?     @relation("TradeDocuments", fields: [tradeId], references: [id], onDelete: Cascade)
+  buyOrder   BuyOrder?  @relation("BuyOrderDocuments", fields: [buyOrderId], references: [id], onDelete: Cascade)
+  sellOrder  SellOrder? @relation("SellOrderDocuments", fields: [sellOrderId], references: [id], onDelete: Cascade)
+
+  @@index([uploadedByUserId])
+  @@index([propertyId])
+  @@index([tradeId])
+  @@index([buyOrderId])
+  @@index([sellOrderId])
+  @@index([entityType, status])
+  @@index([verificationStatus])
+  @@index([createdAt])
+}
+
+model AdminAuditLog {
+  id           String         @id @default(uuid()) @db.Uuid
+  actorUserId  String?        @db.Uuid
+  actorType    AuditActorType @default(ADMIN)
+  action       AuditAction
+  entityType   String
+  entityId     String?
+  targetUserId String?        @db.Uuid
+  propertyId   String?        @db.Uuid
+  tradeId      String?        @db.Uuid
+  metadata     Json?
+  createdAt    DateTime       @default(now())
+
+  actorUser User? @relation("AuditActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId])
+  @@index([actorType, action])
+  @@index([entityType, entityId])
+  @@index([targetUserId])
+  @@index([propertyId])
+  @@index([tradeId])
+  @@index([createdAt])
+}
+
+model PlatformConfig {
+  id               String              @id @default(uuid()) @db.Uuid
+  scope            PlatformConfigScope
+  key              String
+  value            Json
+  description      String?
+  isActive         Boolean             @default(true)
+  aiSummaryCache   String?             @db.Text
+  blockchainTxHash String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@unique([scope, key])
+  @@index([scope, isActive])
 }

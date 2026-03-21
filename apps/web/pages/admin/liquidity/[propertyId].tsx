@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/router";
+import { useEffect, useState } from "react";
 import { apiFetch } from "../../../lib/api";
 
 type LiquidityDetail = {
@@ -57,12 +56,7 @@ function formatDate(value: string | null) {
 }
 
 export default function AdminLiquidityDetailPage() {
-  const router = useRouter();
-  const propertyId = useMemo(() => {
-    const raw = router.query.propertyId;
-    return typeof raw === "string" ? raw : "";
-  }, [router.query.propertyId]);
-
+  const [propertyId, setPropertyId] = useState("");
   const [detail, setDetail] = useState<LiquidityDetail | null>(null);
   const [preview, setPreview] = useState<MatchPreview | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -88,9 +82,16 @@ export default function AdminLiquidityDetailPage() {
   }
 
   useEffect(() => {
-    if (!router.isReady) return;
+    if (typeof window === "undefined") return;
+    const parts = window.location.pathname.split("/").filter(Boolean);
+    const id = parts[parts.length - 1] || "";
+    setPropertyId(id);
+  }, []);
+
+  useEffect(() => {
+    if (!propertyId) return;
     void loadDetail();
-  }, [router.isReady, propertyId]);
+  }, [propertyId]);
 
   async function handleRecompute() {
     if (!propertyId) return;

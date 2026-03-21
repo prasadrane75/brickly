@@ -1,22 +1,9 @@
 import type express from "express";
 import jwt from "jsonwebtoken";
-import { PrismaClient, KycStatus, UserRole } from "@prisma/client";
-
-if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = "postgres://app:app@localhost:5433/fractional";
-}
-
-const prisma = new PrismaClient();
-const jwtSecret = process.env.JWT_SECRET || "dev-secret";
-
-function sendError(
-  res: express.Response,
-  status: number,
-  code: string,
-  message: string
-) {
-  return res.status(status).json({ error: { code, message } });
-}
+import { KycStatus, UserRole } from "@prisma/client";
+import { env } from "../config/env.js";
+import { prisma } from "../db/prisma.js";
+import { sendError } from "../shared/http/sendError.js";
 
 export async function requireAuth(
   req: express.Request,
@@ -30,7 +17,7 @@ export async function requireAuth(
 
   const token = header.slice(7).trim();
   try {
-    const decoded = jwt.verify(token, jwtSecret) as { id: string; role: UserRole };
+    const decoded = jwt.verify(token, env.jwtSecret) as { id: string; role: UserRole };
     req.user = { id: decoded.id, role: decoded.role };
     return next();
   } catch {
