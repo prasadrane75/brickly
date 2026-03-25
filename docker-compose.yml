@@ -31,6 +31,9 @@ services:
     environment:
       DATABASE_URL: postgres://app:app@db:5432/fractional
       JWT_SECRET: dev-secret
+      AI_ENABLED: "true"
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5-mini}
       CORS_ORIGINS: http://localhost:3000,http://192.168.1.177:3000,https://app.bricklyusa.com,https://web-felac66u4a-ue.a.run.app
       DISABLE_EMAIL_VERIFICATION: "true"
       SMTP_HOST: smtp.office365.com
@@ -40,6 +43,8 @@ services:
       SMTP_FROM: ${SMTP_FROM}
       WEB_BASE_URL: http://localhost:3000
       ALLOW_EMAIL_BYPASS: "true"
+
+
     ports:
       - "4000:4000"
     volumes:

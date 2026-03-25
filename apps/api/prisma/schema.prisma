@@ -138,6 +138,18 @@ enum PlatformConfigScope {
   BLOCKCHAIN
 }
 
+enum AiRequestType {
+  PORTFOLIO_SUMMARY
+  TRANSACTION_EXPLANATION
+  DOCUMENT_SUMMARY
+}
+
+enum AiRequestStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 model TargetingRuleConfig {
   id                    String   @id @default(uuid()) @db.Uuid
   name                  String   @unique
@@ -201,6 +213,8 @@ model User {
   buyOrders          BuyOrder[]
   uploadedDocuments  Document[]          @relation("DocumentUploader")
   auditLogs          AdminAuditLog[]     @relation("AuditActorUser")
+  aiRequests         AiRequest[]
+  aiPromptTemplates  AiPromptTemplate[]  @relation("AiPromptTemplateAuthor")
 
   @@index([email])
   @@index([phone])
@@ -596,4 +610,66 @@ model PlatformConfig {
 
   @@unique([scope, key])
   @@index([scope, isActive])
+}
+
+model AiRequest {
+  id             String          @id @default(uuid()) @db.Uuid
+  userId         String          @db.Uuid
+  requestType    AiRequestType
+  status         AiRequestStatus @default(PENDING)
+  entityType     String?
+  entityId       String?
+  promptVersion  String
+  provider       String
+  model          String
+  cacheKey       String?
+  cacheValidUntil DateTime?
+  promptInput    Json?
+  promptText     String?         @db.Text
+  errorMessage   String?         @db.Text
+  createdAt      DateTime        @default(now())
+  completedAt    DateTime?
+
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  response  AiResponse?
+
+  @@index([userId, requestType, createdAt])
+  @@index([requestType, entityType, entityId, createdAt])
+  @@index([status, createdAt])
+  @@index([cacheKey, cacheValidUntil])
+}
+
+model AiResponse {
+  id                String   @id @default(uuid()) @db.Uuid
+  requestId         String   @unique @db.Uuid
+  rawResponse       Json?
+  formattedResponse Json?
+  renderedText      String?  @db.Text
+  createdAt         DateTime @default(now())
+
+  request AiRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+}
+
+model AiPromptTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  requestType AiRequestType
+  name        String
+  version     String
+  provider    String?
+  model       String?
+  systemPrompt String? @db.Text
+  template    String   @db.Text
+  isActive    Boolean  @default(true)
+  notes       String?  @db.Text
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy User? @relation("AiPromptTemplateAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([requestType, name, version])
+  @@index([requestType, isActive])
+  @@index([createdById])
 }

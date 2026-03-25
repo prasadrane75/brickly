@@ -6,6 +6,7 @@ export function buildExtensionFields(input?: {
   return {
     verificationStatus: input?.verificationStatus ?? "UNVERIFIED",
     blockchainRef: input?.blockchainTxHash ?? null,
+    aiSummaryCache: input?.aiSummaryCache ?? null,
     aiInsightAvailable: Boolean(input?.aiSummaryCache),
   };
 }

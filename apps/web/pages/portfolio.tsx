@@ -11,6 +11,7 @@ import { SectionHeader } from "../components/ui/SectionHeader";
 import { ErrorState } from "../components/ui/ErrorState";
 import { LoadingState } from "../components/ui/LoadingState";
 import { formatCurrency } from "../shared/format";
+import { aiClient, type AiSummaryResult } from "../services/ai";
 
 type PortfolioSummary = ApiResponse<{
   summary: {
@@ -48,17 +49,43 @@ type PortfolioSummary = ApiResponse<{
 
 export default function PortfolioPage() {
   const [summary, setSummary] = useState<PortfolioSummary["data"] | null>(null);
+  const [aiSummary, setAiSummary] = useState<AiSummaryResult | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    apiFetch<PortfolioSummary>("/v1/portfolio/summary")
-      .then((response) => setSummary(response.data))
+    Promise.all([
+      apiFetch<PortfolioSummary>("/v1/portfolio/summary"),
+      aiClient.summarizePortfolio().catch((fetchError: any) => {
+        setAiError(fetchError?.message || "AI summary unavailable.");
+        return null;
+      }),
+    ])
+      .then(([response, generatedSummary]) => {
+        setSummary(response.data);
+        setAiSummary(generatedSummary);
+      })
       .catch((fetchError: any) =>
         setError(fetchError?.message || "Portfolio unavailable.")
       )
       .finally(() => setLoading(false));
   }, []);
+
+  async function refreshAiSummary() {
+    setAiLoading(true);
+    setAiError(null);
+
+    try {
+      const nextSummary = await aiClient.summarizePortfolio();
+      setAiSummary(nextSummary);
+    } catch (fetchError: any) {
+      setAiError(fetchError?.message || "AI summary unavailable.");
+    } finally {
+      setAiLoading(false);
+    }
+  }
 
   if (!summary && loading) {
     return <LoadingState title="Loading portfolio" description="Fetching positions, allocation, and income estimates." />;
@@ -131,32 +158,46 @@ export default function PortfolioPage() {
       <section className="card dashboard-section">
         <SectionHeader
           eyebrow="Portfolio Notes"
-          title="Demo briefing"
-          subtitle="The backend already returns deterministic portfolio math, so later AI layers can consume this payload without moving calculation logic into the client."
-          aside={<FutureBadge label="AI Insights" phase="PHASE_2_AI" />}
+          title="AI briefing"
+          subtitle="Generated from the backend portfolio payload so the narrative stays tied to the same valuation and allocation data shown elsewhere on the page."
+          aside={
+            <button className="button secondary" type="button" onClick={refreshAiSummary} disabled={aiLoading}>
+              {aiLoading ? "Refreshing..." : "Refresh AI Summary"}
+            </button>
+          }
         />
-        <ActivityList
-          items={summary.currentHoldings.slice(0, 3)}
-          emptyTitle="No holdings"
-          emptyDescription="Holdings insights will appear here once positions exist."
-          renderItem={(holding) => (
-            <div key={holding.id} className="dashboard-list-row">
-              <div>
-                <strong>{holding.property.name}</strong>
-                <p className="muted">
-                  {holding.sharesOwned} shares · reference{" "}
-                  {formatCurrency(holding.shareClass.referencePricePerShare)} per share
-                </p>
+        {aiSummary ? <p>{aiSummary.summary}</p> : null}
+        {aiSummary ? (
+          <p className="muted">
+            Source: {aiSummary.provider} · model {aiSummary.model} · generated{" "}
+            {new Date(aiSummary.cachedAt).toLocaleString()}
+          </p>
+        ) : null}
+        {aiError ? <p className="status-error">{aiError}</p> : null}
+        {!aiSummary ? (
+          <ActivityList
+            items={summary.currentHoldings.slice(0, 3)}
+            emptyTitle="No holdings"
+            emptyDescription="Holdings insights will appear here once positions exist."
+            renderItem={(holding) => (
+              <div key={holding.id} className="dashboard-list-row">
+                <div>
+                  <strong>{holding.property.name}</strong>
+                  <p className="muted">
+                    {holding.sharesOwned} shares · reference{" "}
+                    {formatCurrency(holding.shareClass.referencePricePerShare)} per share
+                  </p>
+                </div>
+                <div className="dashboard-list-right">
+                  <strong>{formatCurrency(holding.estimatedValue)}</strong>
+                  <span className="muted">
+                    Income {formatCurrency(holding.estimatedMonthlyIncome)} / mo
+                  </span>
+                </div>
               </div>
-              <div className="dashboard-list-right">
-                <strong>{formatCurrency(holding.estimatedValue)}</strong>
-                <span className="muted">
-                  Income {formatCurrency(holding.estimatedMonthlyIncome)} / mo
-                </span>
-              </div>
-            </div>
-          )}
-        />
+            )}
+          />
+        ) : null}
       </section>
     </main>
   );

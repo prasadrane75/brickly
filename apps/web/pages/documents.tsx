@@ -10,6 +10,7 @@ import { SectionHeader } from "../components/ui/SectionHeader";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import type { ApiResponse, PaginatedResponse } from "../shared/api-types";
 import { formatDate } from "../shared/format";
+import { aiClient, type AiDocumentSummaryResult } from "../services/ai";
 
 type DocumentRow = {
   id: string;
@@ -30,6 +31,7 @@ type DocumentRow = {
     email: string | null;
     role: string;
   } | null;
+  aiSummaryCache?: string | null;
 };
 
 type PropertyOption = {
@@ -74,6 +76,8 @@ export default function DocumentsPage() {
   const [notes, setNotes] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
+  const [aiSummaries, setAiSummaries] = useState<Record<string, AiDocumentSummaryResult>>({});
+  const [aiLoadingId, setAiLoadingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -90,6 +94,25 @@ export default function DocumentsPage() {
       `/v1/documents/by-entity?${params.toString()}`
     );
     setRows(response.data);
+    setAiSummaries((current) => {
+      const next = { ...current };
+      for (const row of response.data) {
+        if (!next[row.id] && row.aiSummaryCache) {
+          next[row.id] = {
+            summary: row.aiSummaryCache,
+            keyPoints: [],
+            keyDates: [],
+            potentialRisks: [],
+            actionItems: [],
+            provider: "deterministic",
+            model: "cached-summary",
+            cachedAt: row.createdAt,
+            source: "fallback",
+          };
+        }
+      }
+      return next;
+    });
   }
 
   useEffect(() => {
@@ -209,6 +232,23 @@ export default function DocumentsPage() {
       setError(submitError.message || "Document upload failed.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleSummarizeDocument(documentId: string) {
+    setAiLoadingId(documentId);
+    setError(null);
+
+    try {
+      const summary = await aiClient.summarizeDocument(documentId);
+      setAiSummaries((current) => ({
+        ...current,
+        [documentId]: summary,
+      }));
+    } catch (submitError: any) {
+      setError(submitError.message || "Document summary failed.");
+    } finally {
+      setAiLoadingId(null);
     }
   }
 
@@ -445,11 +485,70 @@ export default function DocumentsPage() {
                   <p className="muted">
                     {row.entityType} · uploaded by {row.uploadedBy?.email || row.uploadedBy?.role || "system"}
                   </p>
+                  {aiSummaries[row.id]?.summary ? (
+                    <div className="document-ai-panel">
+                      <div className="document-ai-panel-header">
+                        <span className="badge subtle">AI-generated summary</span>
+                        <span className="muted">
+                          {aiSummaries[row.id].provider} · {aiSummaries[row.id].model}
+                        </span>
+                      </div>
+                      <p className="muted">{aiSummaries[row.id].summary}</p>
+                      {aiSummaries[row.id].keyPoints.length ? (
+                        <div>
+                          <span className="muted">Key points</span>
+                          <ul className="document-ai-list">
+                            {aiSummaries[row.id].keyPoints.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      {aiSummaries[row.id].keyDates.length ? (
+                        <div>
+                          <span className="muted">Key dates</span>
+                          <ul className="document-ai-list">
+                            {aiSummaries[row.id].keyDates.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      {aiSummaries[row.id].potentialRisks.length ? (
+                        <div>
+                          <span className="muted">Potential risks</span>
+                          <ul className="document-ai-list">
+                            {aiSummaries[row.id].potentialRisks.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                      {aiSummaries[row.id].actionItems.length ? (
+                        <div>
+                          <span className="muted">Action items</span>
+                          <ul className="document-ai-list">
+                            {aiSummaries[row.id].actionItems.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="dashboard-list-right">
                   <StatusBadge value={row.status} />
                   <StatusBadge value={row.verificationStatus} />
                   <span className="muted">{formatDate(row.createdAt)}</span>
+                  <button
+                    className="button secondary"
+                    type="button"
+                    disabled={aiLoadingId === row.id}
+                    onClick={() => handleSummarizeDocument(row.id)}
+                  >
+                    {aiLoadingId === row.id ? "Summarizing..." : "AI Summary"}
+                  </button>
                   <a href={row.fileUrl} className="home-inline-link" target="_blank" rel="noreferrer">
                     Open
                   </a>

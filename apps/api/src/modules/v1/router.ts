@@ -20,6 +20,7 @@ import { transactionService } from "../../services/operational/transaction.servi
 import { documentService } from "../../services/operational/document.service.js";
 import { notificationService } from "../../services/operational/notification.service.js";
 import { auditService } from "../../services/operational/audit.service.js";
+import { aiService } from "../../services/ai/index.js";
 
 const router = express.Router();
 
@@ -141,6 +142,14 @@ const uploadStubDocumentSchema = z.object({
   }),
 });
 
+const summarizeDocumentParamsSchema = z.object({
+  documentId: z.string().uuid(),
+});
+
+const explainTransactionSchema = z.object({
+  transactionId: z.string().uuid(),
+});
+
 router.get(
   "/users/me",
   requireAuth,
@@ -207,6 +216,15 @@ router.get(
   })
 );
 
+router.post(
+  "/portfolio/summary/ai",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const summary = await aiService.summarizePortfolio({ userId: req.user!.id });
+    return sendSuccess(res, summary, { aiStatus: aiService.status });
+  })
+);
+
 router.get(
   "/orders",
   requireAuth,
@@ -245,6 +263,34 @@ router.post(
     const parsed = createOrderSchema.parse(req.body);
     const order = await orderService.createOrder(req.user!, parsed as any);
     return sendCreated(res, order);
+  })
+);
+
+router.post(
+  "/documents/:documentId/summarize",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { documentId } = summarizeDocumentParamsSchema.parse(req.params);
+    const summary = await aiService.summarizeDocument({
+      documentId,
+      userId: req.user!.id,
+      role: req.user!.role,
+    });
+    return sendSuccess(res, summary, { aiStatus: aiService.status });
+  })
+);
+
+router.post(
+  "/ai/explain-transaction",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { transactionId } = explainTransactionSchema.parse(req.body);
+    const explanation = await aiService.explainTransaction({
+      transactionId,
+      userId: req.user!.id,
+      role: req.user!.role,
+    });
+    return sendSuccess(res, explanation, { aiStatus: aiService.status });
   })
 );
 

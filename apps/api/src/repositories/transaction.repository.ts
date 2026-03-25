@@ -30,4 +30,35 @@ export const transactionRepository = {
       take,
     });
   },
+
+  findById(id: string) {
+    return prisma.trade.findUnique({
+      where: { id },
+      include: {
+        property: {
+          include: {
+            images: {
+              orderBy: { sortOrder: "asc" },
+              take: 1,
+            },
+          },
+        },
+        buyer: {
+          select: { id: true, email: true, role: true },
+        },
+        seller: {
+          select: { id: true, email: true, role: true },
+        },
+        sellOrder: {
+          select: {
+            id: true,
+            status: true,
+            strategy: true,
+            askPricePerShare: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+  },
 };
