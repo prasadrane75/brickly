@@ -692,9 +692,71 @@ a:hover {
   margin-bottom: 4px;
 }
 
+.property-verification-panel {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(31, 117, 82, 0.08), rgba(31, 117, 82, 0.03));
+  border: 1px solid rgba(31, 117, 82, 0.18);
+}
+
+.property-verification-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.ownership-history-list {
+  display: grid;
+  gap: 14px;
+}
+
+.ownership-history-item,
+.ownership-history-empty {
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(28, 36, 48, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 248, 252, 0.94));
+}
+
+.ownership-history-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.ownership-history-head strong:last-child {
+  white-space: nowrap;
+}
+
+.ownership-history-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.ownership-history-grid p,
+.ownership-history-empty p {
+  margin: 6px 0 0;
+}
+
 @media (max-width: 820px) {
-  .transaction-ai-grid {
+  .transaction-ai-grid,
+  .ownership-history-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ownership-history-head {
+    flex-direction: column;
+  }
+
+  .ownership-history-head strong:last-child {
+    white-space: normal;
   }
 }
 

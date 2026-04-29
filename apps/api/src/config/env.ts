@@ -26,6 +26,20 @@ export const env = {
   openAiApiKey: process.env.OPENAI_API_KEY || "",
   openAiModel: process.env.OPENAI_MODEL || "gpt-5-mini",
   openAiBaseUrl: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
+  blockchainEnabled: process.env.BLOCKCHAIN_ENABLED === "true",
+  blockchainProvider: process.env.BLOCKCHAIN_PROVIDER || "demo-registry",
+  blockchainNetwork: process.env.BLOCKCHAIN_NETWORK || "sepolia",
+  blockchainChainId: process.env.BLOCKCHAIN_CHAIN_ID
+    ? Number(process.env.BLOCKCHAIN_CHAIN_ID)
+    : null,
+  blockchainRpcUrl: process.env.BLOCKCHAIN_RPC_URL || "",
+  blockchainContractAddress: process.env.BLOCKCHAIN_CONTRACT_ADDRESS || "",
+  blockchainDeployerPrivateKey:
+    process.env.BLOCKCHAIN_DEPLOYER_PRIVATE_KEY ||
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+  blockchainSyncConfirmations: process.env.BLOCKCHAIN_SYNC_CONFIRMATIONS
+    ? Number(process.env.BLOCKCHAIN_SYNC_CONFIRMATIONS)
+    : 1,
 };
 
 // Extension point: centralize future per-environment feature flags here

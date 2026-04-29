@@ -19,6 +19,12 @@ export type TransactionExplanationPayload = {
     askPricePerShare: number;
     createdAt: Date;
   };
+  blockchain: {
+    verificationStatus: string;
+    blockchainRef: string | null;
+    latestRecordStatus: string | null;
+    note: string;
+  };
 };
 
 export function buildTransactionExplanationPrompt(data: TransactionExplanationPayload) {
@@ -33,6 +39,7 @@ export function buildTransactionExplanationPrompt(data: TransactionExplanationPa
         totalAmount: data.totalAmount,
         verificationStatus: data.verificationStatus,
       },
+      blockchain: data.blockchain,
       property: data.property,
       sellOrder: {
         status: data.sellOrder.status,
@@ -49,18 +56,27 @@ export function buildTransactionExplanationPrompt(data: TransactionExplanationPa
 export function getTransactionExplanationInstructions() {
   return [
     "Explain the transaction in plain English for a non-technical investor.",
-    "Keep it factual, concise, and grounded only in supplied transaction data.",
+    "Keep it factual, concise, and grounded only in supplied transaction data and blockchain verification context.",
     "Do not provide financial advice.",
-    "Return valid JSON with keys: headline, explanation, impactSummary, relatedProperty, transactionStatusNote.",
+    "Return valid JSON with keys: headline, explanation, verificationStatus, trustNote, impactSummary, relatedProperty, transactionStatusNote.",
   ].join(" ");
 }
 
 export function buildTransactionExplanationFallback(data: TransactionExplanationPayload) {
+  const trustNote =
+    data.blockchain.verificationStatus === "VERIFIED"
+      ? "This transaction is verified on the blockchain-backed proof layer."
+      : data.blockchain.blockchainRef
+        ? `This transaction has a blockchain reference but remains ${data.blockchain.verificationStatus.toLowerCase()}.`
+        : "This transaction is currently tracked in the operational ledger without a verified blockchain proof.";
+
   return {
     headline: `${data.direction} ${data.sharesTraded} shares in ${data.property.name}`,
     explanation: clampSummary(
       `This transaction records a ${data.direction.toLowerCase()} of ${data.sharesTraded} shares in ${data.property.name} at ${summarizeCurrency(data.pricePerShare)} per share, for a total of ${summarizeCurrency(data.totalAmount)}.`
     ),
+    verificationStatus: data.blockchain.verificationStatus,
+    trustNote,
     impactSummary:
       data.direction === "BUY"
         ? `This purchase increases your exposure to ${data.property.name}.`

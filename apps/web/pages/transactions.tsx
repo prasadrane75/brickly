@@ -4,10 +4,9 @@ import { ActivityList } from "../components/dashboard/ActivityList";
 import { ErrorState } from "../components/ui/ErrorState";
 import { LoadingState } from "../components/ui/LoadingState";
 import { PageHero } from "../components/ui/PageHero";
-import { FutureBadge } from "../components/ui/FutureBadge";
 import { SectionHeader } from "../components/ui/SectionHeader";
 import type { PaginatedResponse } from "../shared/api-types";
-import { formatCurrency, formatDate } from "../shared/format";
+import { buildExplorerHref, formatBlockchainHash, formatCurrency, formatDate } from "../shared/format";
 import { aiClient, type AiTransactionExplanationResult } from "../services/ai";
 
 type Transaction = {
@@ -16,6 +15,9 @@ type Transaction = {
   sharesTraded: number;
   totalAmount: number;
   tradedAt: string;
+  verificationStatus: string;
+  blockchainRef?: string | null;
+  blockchainVerified?: boolean;
   property: { name: string; city: string; state: string };
 };
 
@@ -84,7 +86,11 @@ export default function TransactionsPage() {
         eyebrow="Transactions"
         title="Recent trade history"
         description="A clean ledger of buy and sell activity for investor walkthroughs."
-        actions={<FutureBadge label="Verified Ownership" phase="PHASE_3_BLOCKCHAIN" />}
+        actions={
+          <span className={`badge ${rows.some((row) => row.blockchainVerified) ? "success" : "subtle"}`}>
+            {rows.some((row) => row.blockchainVerified) ? "Verified ownership live" : "Proof layer optional"}
+          </span>
+        }
       />
 
       <div className="card dashboard-section">
@@ -107,10 +113,20 @@ export default function TransactionsPage() {
                   <p className="muted">
                     {row.property.city}, {row.property.state} · {row.direction} · {row.sharesTraded} shares
                   </p>
+                  <p className="muted">
+                    {row.blockchainVerified ? "Blockchain-verified transfer" : "Blockchain proof optional"} ·{" "}
+                    {row.verificationStatus}
+                  </p>
+                  <p className="muted">
+                    Proof ref: {row.blockchainRef ? formatBlockchainHash(row.blockchainRef) : "Not recorded yet"}
+                  </p>
                 </div>
                 <div className="dashboard-list-right">
                   <strong>{formatCurrency(row.totalAmount)}</strong>
                   <span className="muted">{formatDate(row.tradedAt)}</span>
+                  <span className={`badge ${row.blockchainVerified ? "success" : "subtle"}`}>
+                    {row.blockchainVerified ? "Verified" : "Pending proof"}
+                  </span>
                   <button
                     className="button secondary"
                     type="button"
@@ -142,6 +158,14 @@ export default function TransactionsPage() {
                       <p>{explanations[row.id].explanation}</p>
                       <div className="transaction-ai-grid">
                         <div>
+                          <span className="muted">Verification</span>
+                          <p>{explanations[row.id].verificationStatus}</p>
+                        </div>
+                        <div>
+                          <span className="muted">Trust note</span>
+                          <p>{explanations[row.id].trustNote}</p>
+                        </div>
+                        <div>
                           <span className="muted">Impact</span>
                           <p>{explanations[row.id].impactSummary}</p>
                         </div>
@@ -152,6 +176,26 @@ export default function TransactionsPage() {
                         <div>
                           <span className="muted">Status note</span>
                           <p>{explanations[row.id].transactionStatusNote}</p>
+                        </div>
+                        <div>
+                          <span className="muted">Blockchain reference</span>
+                          {row.blockchainRef ? (
+                            <p>
+                              {formatBlockchainHash(row.blockchainRef)}{" "}
+                              {buildExplorerHref(row.blockchainRef, 11155111) ? (
+                                <a
+                                  href={buildExplorerHref(row.blockchainRef, 11155111)!}
+                                  className="home-inline-link"
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  View proof
+                                </a>
+                              ) : null}
+                            </p>
+                          ) : (
+                            <p>Not recorded yet</p>
+                          )}
                         </div>
                       </div>
                     </>

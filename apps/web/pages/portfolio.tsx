@@ -10,7 +10,7 @@ import { FutureBadge } from "../components/ui/FutureBadge";
 import { SectionHeader } from "../components/ui/SectionHeader";
 import { ErrorState } from "../components/ui/ErrorState";
 import { LoadingState } from "../components/ui/LoadingState";
-import { formatCurrency } from "../shared/format";
+import { buildExplorerHref, formatBlockchainHash, formatCurrency } from "../shared/format";
 import { aiClient, type AiSummaryResult } from "../services/ai";
 
 type PortfolioSummary = ApiResponse<{
@@ -34,9 +34,22 @@ type PortfolioSummary = ApiResponse<{
       status: string;
       thumbnailUrl: string | null;
       verificationStatus: string;
+      blockchainRef?: string | null;
+      blockchainVerified?: boolean;
     };
     shareClass: {
       referencePricePerShare: number;
+    };
+  }>;
+  recentTransactions: Array<{
+    id: string;
+    direction: "BUY" | "SELL";
+    tradedAt: string;
+    verificationStatus: string;
+    blockchainRef?: string | null;
+    blockchainVerified?: boolean;
+    property: {
+      id: string;
     };
   }>;
   allocationByProperty: Array<{
@@ -108,6 +121,16 @@ export default function PortfolioPage() {
         <MetricCard label="Portfolio Value" value={formatCurrency(summary.summary.totalPortfolioValue)} />
         <MetricCard label="Invested Amount" value={formatCurrency(summary.summary.totalInvestedAmount)} accent="gold" />
         <MetricCard label="Annual Income" value={formatCurrency(summary.summary.estimatedAnnualIncome)} accent="green" />
+        <MetricCard
+          label="Trust Score"
+          value={aiSummary ? `${aiSummary.trustScore}/100` : "Pending"}
+          detail={
+            aiSummary
+              ? `${aiSummary.verificationCoverage}% verification coverage`
+              : "Generated from holdings and blockchain-backed activity"
+          }
+          accent="blue"
+        />
       </section>
 
       <section className="dashboard-grid dashboard-main-grid">
@@ -119,19 +142,41 @@ export default function PortfolioPage() {
             aside={<span className="badge subtle">{summary.currentHoldings.length} positions</span>}
           />
           <div className="dashboard-card-grid">
-            {summary.currentHoldings.map((holding) => (
-              <HoldingCard
-                key={holding.id}
-                propertyName={holding.property.name}
-                location={`${holding.property.city}, ${holding.property.state}`}
-                status={holding.property.status}
-                sharesOwned={holding.sharesOwned}
-                estimatedValue={holding.estimatedValue}
-                estimatedMonthlyIncome={holding.estimatedMonthlyIncome}
-                allocationWeight={holding.allocationWeight}
-                verificationStatus={holding.property.verificationStatus}
-              />
-            ))}
+            {summary.currentHoldings.map((holding) => {
+              const latestBuyForProperty = summary.recentTransactions.find(
+                (transaction) =>
+                  transaction.property.id === holding.property.id &&
+                  transaction.direction === "BUY"
+              );
+
+              const proofLabel = holding.property.blockchainVerified
+                ? "Property verified"
+                : latestBuyForProperty?.blockchainVerified
+                  ? "Verified acquisition transfer"
+                  : latestBuyForProperty?.verificationStatus
+                    ? `Transfer ${latestBuyForProperty.verificationStatus.toLowerCase()}`
+                    : "Property proof pending";
+
+              const proofRef = latestBuyForProperty?.blockchainRef || holding.property.blockchainRef;
+
+              return (
+                <HoldingCard
+                  key={holding.id}
+                  propertyName={holding.property.name}
+                  location={`${holding.property.city}, ${holding.property.state}`}
+                  status={holding.property.status}
+                  sharesOwned={holding.sharesOwned}
+                  estimatedValue={holding.estimatedValue}
+                  estimatedMonthlyIncome={holding.estimatedMonthlyIncome}
+                  allocationWeight={holding.allocationWeight}
+                  verificationStatus={holding.property.verificationStatus}
+                  blockchainRef={holding.property.blockchainRef}
+                  blockchainVerified={holding.property.blockchainVerified}
+                  proofLabel={proofLabel}
+                  proofRef={proofRef}
+                />
+              );
+            })}
           </div>
         </div>
 
@@ -168,6 +213,37 @@ export default function PortfolioPage() {
         />
         {aiSummary ? <p>{aiSummary.summary}</p> : null}
         {aiSummary ? (
+          <div className="dashboard-grid dashboard-metrics-grid">
+            <MetricCard
+              label="Verification Coverage"
+              value={`${aiSummary.verificationCoverage}%`}
+              detail={`${aiSummary.verifiedVsUnverified.verified} verified holdings`}
+              accent="green"
+            />
+            <MetricCard
+              label="Verified Positions"
+              value={String(aiSummary.verifiedVsUnverified.verified)}
+              detail={`${aiSummary.verifiedVsUnverified.unverified} pending proof`}
+            />
+            <MetricCard
+              label="Insight Status"
+              value={aiSummary.source === "generated" ? "Verified Insight" : "Fallback"}
+              detail="AI reads the same portfolio payload shown on this page"
+              accent="gold"
+            />
+          </div>
+        ) : null}
+        {aiSummary?.riskNotes.length ? (
+          <div className="dashboard-list">
+            {aiSummary.riskNotes.map((note) => (
+              <div key={note} className="dashboard-list-row">
+                <strong>Risk note</strong>
+                <span>{note}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {aiSummary ? (
           <p className="muted">
             Source: {aiSummary.provider} · model {aiSummary.model} · generated{" "}
             {new Date(aiSummary.cachedAt).toLocaleString()}
@@ -187,12 +263,26 @@ export default function PortfolioPage() {
                     {holding.sharesOwned} shares · reference{" "}
                     {formatCurrency(holding.shareClass.referencePricePerShare)} per share
                   </p>
+                  <p className="muted">
+                    {holding.property.blockchainVerified ? "Property verified" : "Property proof pending"}
+                    {holding.property.blockchainRef ? ` · ${formatBlockchainHash(holding.property.blockchainRef)}` : ""}
+                  </p>
                 </div>
                 <div className="dashboard-list-right">
                   <strong>{formatCurrency(holding.estimatedValue)}</strong>
                   <span className="muted">
                     Income {formatCurrency(holding.estimatedMonthlyIncome)} / mo
                   </span>
+                  {buildExplorerHref(holding.property.blockchainRef, 11155111) ? (
+                    <a
+                      href={buildExplorerHref(holding.property.blockchainRef, 11155111)!}
+                      className="home-inline-link"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View proof
+                    </a>
+                  ) : null}
                 </div>
               </div>
             )}

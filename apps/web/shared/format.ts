@@ -51,3 +51,30 @@ export function formatDateTime(value: string | null | undefined) {
     minute: "2-digit",
   });
 }
+
+export function formatBlockchainHash(value: string | null | undefined, size = 6) {
+  if (!value) {
+    return "—";
+  }
+
+  if (value.length <= size * 2 + 2) {
+    return value;
+  }
+
+  return `${value.slice(0, size + 2)}…${value.slice(-size)}`;
+}
+
+export function buildExplorerHref(
+  value: string | null | undefined,
+  chainId?: number | null
+) {
+  if (!value || !value.startsWith("0x")) {
+    return null;
+  }
+
+  if (chainId === 11155111) {
+    return `https://sepolia.etherscan.io/tx/${value}`;
+  }
+
+  return null;
+}

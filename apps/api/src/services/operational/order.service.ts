@@ -13,6 +13,12 @@ import {
 import { orderRepository } from "../../repositories/order.repository.js";
 import { ApiError } from "../../shared/http/apiError.js";
 import { buildExtensionFields } from "../../shared/http/extensions.js";
+import { getMarketRuleConfig } from "../../pricing/marketRules.js";
+import { computeOptimizedPrice } from "../../pricing/optimizeSellOrder.js";
+import { prisma } from "../../db/prisma.js";
+import { aiService } from "../ai/index.js";
+import { blockchainService } from "../blockchain/index.js";
+import { documentStorageService } from "../storage/document-storage.js";
 
 type AuthUser = { id: string; role: UserRole };
 
@@ -57,6 +63,12 @@ function getExecutionSummary(input: {
   };
 }
 
+function triggerTransferProof(tradeId: string) {
+  void blockchainService.recordTransferProof({ transactionId: tradeId }).catch((error) => {
+    console.error(`[blockchain] automatic transfer proof failed for trade ${tradeId}:`, error);
+  });
+}
+
 async function createExecutionArtifacts(input: {
   tx: Prisma.TransactionClient;
   actorUserId: string;
@@ -74,6 +86,18 @@ async function createExecutionArtifacts(input: {
   const totalAmount = Number(input.pricePerShare) * input.sharesTraded;
   const priceLabel = `$${Number(input.pricePerShare).toFixed(2)}`;
   const totalLabel = `$${totalAmount.toFixed(2)}`;
+  const generatedConfirmation = await documentStorageService.saveGeneratedPdf({
+    fileName: `${input.propertyAddress} trade confirmation.pdf`,
+    lines: [
+      "Brickly Trade Confirmation",
+      `Trade ID: ${input.tradeId}`,
+      `Property: ${input.propertyAddress}`,
+      `Shares traded: ${input.sharesTraded}`,
+      `Price per share: ${priceLabel}`,
+      `Total amount: ${totalLabel}`,
+      `Execution mode: ${input.executionMode}`,
+    ],
+  });
 
   await Promise.all([
     orderRepository.createNotification(
@@ -123,9 +147,10 @@ async function createExecutionArtifacts(input: {
         buyOrderId: input.buyOrderId,
         sellOrderId: input.sellOrderId,
         fileName: `${input.propertyAddress} trade confirmation.pdf`,
-        fileUrl: `https://demo.brickly.local/trades/${input.tradeId}/confirmation`,
+        fileUrl: generatedConfirmation.fileUrl,
         metadata: {
           generatedInternally: true,
+          storageKey: generatedConfirmation.storageKey,
           executionMode: input.executionMode,
           note: "PHASE_3_BLOCKCHAIN: replace this internal confirmation with verified transfer evidence when ownership settlement moves on-chain.",
         },
@@ -659,6 +684,91 @@ async function executeSellWorkflow(
 }
 
 export const orderService = {
+  async getSellPriceRecommendation(input: {
+    propertyId: string;
+    strategy?: SellOrderStrategy;
+  }) {
+    const strategy = input.strategy ?? SellOrderStrategy.BALANCED;
+    const property = await orderRepository.findSellRecommendationContext(input.propertyId);
+
+    if (!property?.shareClass) {
+      throw new ApiError(404, "NOT_FOUND", "Property share class not found");
+    }
+
+    const config = await getMarketRuleConfig(prisma);
+    const referencePrice = Number(property.shareClass.referencePricePerShare);
+    const liquidityScore = property.liquidityScore;
+    const recommendedPrice = computeOptimizedPrice({
+      referencePrice,
+      liquidityScore,
+      strategy,
+      config: {
+        strategyMultiplierFastExit: config.strategyMultiplierFastExit,
+        strategyMultiplierBalanced: config.strategyMultiplierBalanced,
+        strategyMultiplierMaxPrice: config.strategyMultiplierMaxPrice,
+        maxPriceCapMultiplier: config.maxPriceCapMultiplier,
+      },
+    });
+
+    const recentTrades = property.trades.map((trade) => ({
+      pricePerShare: Number(trade.pricePerShare),
+      sharesTraded: trade.sharesTraded,
+      tradedAt: trade.tradedAt.toISOString(),
+    }));
+    const pricedBuyOrders = property.buyOrders.filter((order) => order.maxPricePerShare);
+    const topLimitBid =
+      pricedBuyOrders.length > 0
+        ? Math.max(...pricedBuyOrders.map((order) => Number(order.maxPricePerShare)))
+        : null;
+    const recentTradeRange =
+      recentTrades.length > 0
+        ? {
+            min: Math.min(...recentTrades.map((trade) => trade.pricePerShare)),
+            max: Math.max(...recentTrades.map((trade) => trade.pricePerShare)),
+            latest: recentTrades[0].pricePerShare,
+            tradeCount: recentTrades.length,
+          }
+        : null;
+
+    const aiRationale = await aiService.explainSellPriceRecommendation({
+      property: {
+        address1: property.address1,
+        city: property.city,
+        state: property.state,
+      },
+      strategy,
+      referencePrice,
+      recommendedPrice,
+      liquidityScore,
+      latestListingPrice: property.listings[0] ? Number(property.listings[0].askingPrice) : null,
+      recentTradeRange,
+      openBuyInterest: {
+        orderCount: property.buyOrders.length,
+        topLimitBid,
+      },
+    });
+
+    return {
+      property: {
+        id: property.id,
+        address1: property.address1,
+        city: property.city,
+        state: property.state,
+      },
+      strategy,
+      referencePrice,
+      recommendedPrice,
+      liquidityScore,
+      latestListingPrice: property.listings[0] ? Number(property.listings[0].askingPrice) : null,
+      recentTradeRange,
+      openBuyInterest: {
+        orderCount: property.buyOrders.length,
+        topLimitBid,
+      },
+      aiRationale,
+    };
+  },
+
   async listOrders(
     input: {
       userId: string;
@@ -770,7 +880,7 @@ export const orderService = {
   },
 
   async createOrder(user: AuthUser, payload: BuyPayload | SellPayload) {
-    return orderRepository.runInTransaction(async (tx) => {
+    const order = await orderRepository.runInTransaction(async (tx) => {
       if (payload.side === "BUY") {
         if (payload.orderType === BuyOrderType.LIMIT && !payload.maxPricePerShare) {
           throw new ApiError(
@@ -785,6 +895,13 @@ export const orderService = {
 
       return executeSellWorkflow(tx, user, payload);
     });
+
+    const transactionId = order.workflow?.transactionId;
+    if (transactionId) {
+      triggerTransferProof(transactionId);
+    }
+
+    return order;
   },
 
   async cancelOrder(user: AuthUser, side: "BUY" | "SELL", orderId: string) {

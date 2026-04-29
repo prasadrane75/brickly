@@ -2460,7 +2460,7 @@ app.delete(
 app.get("/", (_req, res) => {
   res.json({
     name: "Brickly API",
-    phase: "phase-1-foundation",
+    phase: "phase-3-blockchain-trust-layer",
     modules: moduleManifest.map((module) => module.name),
     placeholders: {
       ai: aiService.status,

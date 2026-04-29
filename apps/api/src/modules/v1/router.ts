@@ -21,6 +21,7 @@ import { documentService } from "../../services/operational/document.service.js"
 import { notificationService } from "../../services/operational/notification.service.js";
 import { auditService } from "../../services/operational/audit.service.js";
 import { aiService } from "../../services/ai/index.js";
+import { blockchainService } from "../../services/blockchain/index.js";
 
 const router = express.Router();
 
@@ -37,6 +38,11 @@ const ordersListSchema = paginationSchema.extend({
   side: z.enum(["BUY", "SELL"]).default("BUY"),
   status: z.string().optional(),
   propertyId: z.string().uuid().optional(),
+});
+
+const sellPriceRecommendationSchema = z.object({
+  propertyId: z.string().uuid(),
+  strategy: z.enum(["MAX_PRICE", "BALANCED", "FAST_EXIT"]).optional(),
 });
 
 const transactionsListSchema = paginationSchema.extend({
@@ -150,6 +156,50 @@ const explainTransactionSchema = z.object({
   transactionId: z.string().uuid(),
 });
 
+const ownershipSummarySchema = z.object({
+  propertyId: z.string().uuid(),
+});
+
+const auditSummarySchema = z.object({
+  limit: z.number().int().positive().max(100).optional(),
+  action: z.string().optional(),
+  actorType: z.string().optional(),
+  entityType: z.string().optional(),
+});
+
+const anomalyDetectionSchema = z.object({
+  propertyId: z.string().uuid().optional(),
+  limit: z.number().int().positive().max(100).optional(),
+});
+
+const liquidityInsightSchema = z.object({
+  propertyId: z.string().uuid(),
+});
+
+const blockchainPropertyParamsSchema = z.object({
+  propertyId: z.string().uuid(),
+});
+
+const blockchainTransactionParamsSchema = z.object({
+  transactionId: z.string().uuid(),
+});
+
+const blockchainProofSchema = z.object({
+  txHash: z.string().min(10).optional().nullable(),
+  walletAddress: z.string().min(6).optional().nullable(),
+  contractAddress: z.string().min(6).optional().nullable(),
+  blockNumber: z.number().int().positive().optional().nullable(),
+  proofPayload: z.record(z.any()).optional().nullable(),
+});
+
+const blockchainOwnershipProofSchema = blockchainProofSchema.extend({
+  ownerUserId: z.string().uuid().optional().nullable(),
+});
+
+const blockchainSyncSchema = z.object({
+  limit: z.number().int().positive().max(100).optional(),
+});
+
 router.get(
   "/users/me",
   requireAuth,
@@ -208,6 +258,35 @@ router.get(
 );
 
 router.get(
+  "/blockchain/properties/:propertyId/verification",
+  asyncHandler(async (req, res) => {
+    const { propertyId } = blockchainPropertyParamsSchema.parse(req.params);
+    const verification = await blockchainService.getPropertyVerification(propertyId);
+    return sendSuccess(res, verification, { blockchainStatus: blockchainService.status });
+  })
+);
+
+router.post(
+  "/blockchain/properties/:propertyId/ownership-proof",
+  requireAuth,
+  requireRole([UserRole.ADMIN]),
+  asyncHandler(async (req, res) => {
+    const { propertyId } = blockchainPropertyParamsSchema.parse(req.params);
+    const payload = blockchainOwnershipProofSchema.parse(req.body);
+    const verification = await blockchainService.recordOwnershipProof({
+      propertyId,
+      ownerUserId: payload.ownerUserId,
+      txHash: payload.txHash,
+      walletAddress: payload.walletAddress,
+      contractAddress: payload.contractAddress,
+      blockNumber: payload.blockNumber,
+      proofPayload: payload.proofPayload ?? undefined,
+    });
+    return sendSuccess(res, verification, { blockchainStatus: blockchainService.status });
+  })
+);
+
+router.get(
   "/portfolio/summary",
   requireAuth,
   asyncHandler(async (req, res) => {
@@ -255,6 +334,59 @@ router.get(
   })
 );
 
+router.get(
+  "/orders/sell-recommendation",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const parsed = sellPriceRecommendationSchema.parse(req.query);
+    const recommendation = await orderService.getSellPriceRecommendation(parsed);
+    return sendSuccess(res, recommendation, { aiStatus: aiService.status });
+  })
+);
+
+router.get(
+  "/blockchain/transactions/:transactionId/verification",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { transactionId } = blockchainTransactionParamsSchema.parse(req.params);
+    const verification = await blockchainService.getTransactionVerification(
+      { userId: req.user!.id, role: req.user!.role },
+      transactionId
+    );
+    return sendSuccess(res, verification, { blockchainStatus: blockchainService.status });
+  })
+);
+
+router.post(
+  "/blockchain/transactions/:transactionId/transfer-proof",
+  requireAuth,
+  requireRole([UserRole.ADMIN]),
+  asyncHandler(async (req, res) => {
+    const { transactionId } = blockchainTransactionParamsSchema.parse(req.params);
+    const payload = blockchainProofSchema.parse(req.body);
+    const verification = await blockchainService.recordTransferProof({
+      transactionId,
+      txHash: payload.txHash,
+      walletAddress: payload.walletAddress,
+      contractAddress: payload.contractAddress,
+      blockNumber: payload.blockNumber,
+      proofPayload: payload.proofPayload ?? undefined,
+    });
+    return sendSuccess(res, verification, { blockchainStatus: blockchainService.status });
+  })
+);
+
+router.post(
+  "/blockchain/sync",
+  requireAuth,
+  requireRole([UserRole.ADMIN]),
+  asyncHandler(async (req, res) => {
+    const payload = blockchainSyncSchema.parse(req.body ?? {});
+    const result = await blockchainService.syncPendingRecords(payload.limit);
+    return sendSuccess(res, result, { blockchainStatus: blockchainService.status });
+  })
+);
+
 router.post(
   "/orders",
   requireAuth,
@@ -291,6 +423,48 @@ router.post(
       role: req.user!.role,
     });
     return sendSuccess(res, explanation, { aiStatus: aiService.status });
+  })
+);
+
+router.post(
+  "/ai/ownership-summary",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { propertyId } = ownershipSummarySchema.parse(req.body);
+    const summary = await aiService.summarizeOwnership({ propertyId });
+    return sendSuccess(res, summary, { aiStatus: aiService.status });
+  })
+);
+
+router.post(
+  "/ai/audit-summary",
+  requireAuth,
+  requireRole([UserRole.ADMIN]),
+  asyncHandler(async (req, res) => {
+    const payload = auditSummarySchema.parse(req.body ?? {});
+    const summary = await aiService.summarizeAudit(payload);
+    return sendSuccess(res, summary, { aiStatus: aiService.status });
+  })
+);
+
+router.post(
+  "/ai/anomaly-detection",
+  requireAuth,
+  requireRole([UserRole.ADMIN]),
+  asyncHandler(async (req, res) => {
+    const payload = anomalyDetectionSchema.parse(req.body ?? {});
+    const result = await aiService.detectAnomalies(payload);
+    return sendSuccess(res, result, { aiStatus: aiService.status });
+  })
+);
+
+router.post(
+  "/ai/liquidity-insight",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { propertyId } = liquidityInsightSchema.parse(req.body);
+    const insight = await aiService.explainLiquidity({ propertyId });
+    return sendSuccess(res, insight, { aiStatus: aiService.status });
   })
 );
 

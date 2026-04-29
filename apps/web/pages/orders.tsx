@@ -40,6 +40,46 @@ type PropertyOption = {
   shareClass: { referencePricePerShare: number } | null;
 };
 
+type SellOrderStrategy = "FAST_EXIT" | "BALANCED" | "MAX_PRICE";
+
+type SellPriceRecommendation = {
+  property: {
+    id: string;
+    address1: string;
+    city: string;
+    state: string;
+  };
+  strategy: SellOrderStrategy;
+  referencePrice: number;
+  recommendedPrice: number;
+  liquidityScore: number;
+  latestListingPrice: number | null;
+  recentTradeRange: {
+    min: number;
+    max: number;
+    latest: number;
+    tradeCount: number;
+  } | null;
+  openBuyInterest: {
+    orderCount: number;
+    topLimitBid: number | null;
+  };
+  aiRationale: {
+    summary: string;
+    provider: "openai" | "deterministic";
+    model: string;
+    cachedAt: string;
+    source: "generated" | "fallback";
+  };
+};
+
+function getRecommendedPrice(property: PropertyOption | undefined) {
+  if (!property) return "";
+  return String(
+    property.shareClass?.referencePricePerShare ?? property.listing?.askingPrice ?? ""
+  );
+}
+
 export default function OrdersPage() {
   const [buyOrders, setBuyOrders] = useState<Order[]>([]);
   const [sellOrders, setSellOrders] = useState<Order[]>([]);
@@ -48,7 +88,10 @@ export default function OrdersPage() {
   const [propertyId, setPropertyId] = useState("");
   const [shares, setShares] = useState("10");
   const [orderType, setOrderType] = useState<"MARKET" | "LIMIT">("MARKET");
+  const [sellStrategy, setSellStrategy] = useState<SellOrderStrategy>("BALANCED");
   const [pricePerShare, setPricePerShare] = useState("");
+  const [sellRecommendation, setSellRecommendation] = useState<SellPriceRecommendation | null>(null);
+  const [recommendationLoading, setRecommendationLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
@@ -72,13 +115,7 @@ export default function OrdersPage() {
         setProperties(propertyResponse.data);
         if (!propertyId && propertyResponse.data[0]) {
           setPropertyId(propertyResponse.data[0].id);
-          setPricePerShare(
-            String(
-              propertyResponse.data[0].shareClass?.referencePricePerShare ??
-                propertyResponse.data[0].listing?.askingPrice ??
-                ""
-            )
-          );
+          setPricePerShare(getRecommendedPrice(propertyResponse.data[0]));
         }
       })
       .catch((fetchError: any) =>
@@ -92,24 +129,44 @@ export default function OrdersPage() {
     if (!selectedProperty) return;
 
     if (side === "BUY") {
-      setPricePerShare(
-        String(
-          selectedProperty.shareClass?.referencePricePerShare ??
-            selectedProperty.listing?.askingPrice ??
-            ""
-        )
-      );
-      return;
+      setSellRecommendation(null);
+      setPricePerShare(getRecommendedPrice(selectedProperty));
     }
-
-    setPricePerShare(
-      String(
-        selectedProperty.listing?.askingPrice ??
-          selectedProperty.shareClass?.referencePricePerShare ??
-          ""
-      )
-    );
   }, [propertyId, properties, side]);
+
+  useEffect(() => {
+    if (side !== "SELL" || !propertyId) return;
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      propertyId,
+      strategy: sellStrategy,
+    });
+
+    setRecommendationLoading(true);
+    apiFetch<{ success: true; data: SellPriceRecommendation }>(
+      `/v1/orders/sell-recommendation?${params.toString()}`,
+      {
+        signal: controller.signal,
+      }
+    )
+      .then((response) => {
+        setSellRecommendation(response.data);
+        setPricePerShare(String(response.data.recommendedPrice));
+      })
+      .catch((fetchError: any) => {
+        if (fetchError?.name === "AbortError") return;
+        setSellRecommendation(null);
+        setError(fetchError?.message || "Unable to load a sell recommendation.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setRecommendationLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [propertyId, sellStrategy, side]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -147,7 +204,7 @@ export default function OrdersPage() {
               propertyId,
               sharesForSale: quantity,
               askPricePerShare: perShare,
-              strategy: "BALANCED",
+              strategy: sellStrategy,
             };
 
       const response = await apiFetch<ApiResponse<Order>>("/v1/orders", {
@@ -220,6 +277,9 @@ export default function OrdersPage() {
       </main>
     );
   }
+
+  const selectedProperty = properties.find((property) => property.id === propertyId);
+  const recommendedPrice = selectedProperty?.shareClass?.referencePricePerShare ?? null;
 
   return (
     <main className="screen-page">
@@ -322,6 +382,51 @@ export default function OrdersPage() {
                     value={pricePerShare}
                     onChange={(event) => setPricePerShare(event.target.value)}
                   />
+                  {sellRecommendation ? (
+                    <div className="property-meta">
+                      <span className="muted">
+                        Recommended price: {formatCurrency(sellRecommendation.recommendedPrice)} per
+                        share
+                      </span>
+                      <span className="muted">
+                        Reference price: {formatCurrency(sellRecommendation.referencePrice)} per share
+                      </span>
+                      <span className="muted">
+                        Liquidity score: {sellRecommendation.liquidityScore}
+                      </span>
+                      {sellRecommendation.openBuyInterest.topLimitBid ? (
+                        <span className="muted">
+                          Top limit bid: {formatCurrency(sellRecommendation.openBuyInterest.topLimitBid)}
+                        </span>
+                      ) : (
+                        <span className="muted">
+                          Open buy interest: {sellRecommendation.openBuyInterest.orderCount} orders
+                        </span>
+                      )}
+                      <span className="muted">
+                        AI guidance ({sellRecommendation.aiRationale.provider}):{" "}
+                        {sellRecommendation.aiRationale.summary}
+                      </span>
+                    </div>
+                  ) : recommendationLoading ? (
+                    <p className="muted">Loading recommended sell price...</p>
+                  ) : recommendedPrice ? (
+                    <p className="muted">
+                      Reference price: {formatCurrency(recommendedPrice)} per share.
+                    </p>
+                  ) : null}
+                </div>
+                <div>
+                  <label className="label">Sell Strategy</label>
+                  <select
+                    className="select"
+                    value={sellStrategy}
+                    onChange={(event) => setSellStrategy(event.target.value as SellOrderStrategy)}
+                  >
+                    <option value="FAST_EXIT">Fast Exit</option>
+                    <option value="BALANCED">Balanced</option>
+                    <option value="MAX_PRICE">Max Price</option>
+                  </select>
                 </div>
                 <div className="order-note-card">
                   <strong>Workflow note</strong>

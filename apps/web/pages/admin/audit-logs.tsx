@@ -6,6 +6,11 @@ import { PageHero } from "../../components/ui/PageHero";
 import { FutureBadge } from "../../components/ui/FutureBadge";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { StatusBadge } from "../../components/ui/StatusBadge";
+import {
+  aiClient,
+  type AiAnomalyDetectionResult,
+  type AiAuditSummaryResult,
+} from "../../services/ai";
 import { formatDateTime } from "../../shared/format";
 
 type AuditLog = {
@@ -21,6 +26,18 @@ type AuditLog = {
   metadata: Record<string, unknown> | null;
   createdAt: string;
   summary: string;
+  propertyProof: {
+    verificationStatus: string;
+    blockchainRef: string | null;
+    latestRecordStatus: string | null;
+    contractAddress: string | null;
+  } | null;
+  tradeProof: {
+    verificationStatus: string;
+    blockchainRef: string | null;
+    latestRecordStatus: string | null;
+    contractAddress: string | null;
+  } | null;
   actorUser: {
     id: string;
     email: string | null;
@@ -48,6 +65,8 @@ export default function AdminAuditLogsPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
+  const [auditSummary, setAuditSummary] = useState<AiAuditSummaryResult | null>(null);
+  const [anomalySummary, setAnomalySummary] = useState<AiAnomalyDetectionResult | null>(null);
   const [action, setAction] = useState("");
   const [actorType, setActorType] = useState("");
   const [entityType, setEntityType] = useState("");
@@ -71,6 +90,17 @@ export default function AdminAuditLogsPage() {
     try {
       const data = await apiFetch<{ data: AuditLog[] }>(`/v1/admin/audit-history?${params.toString()}`);
       setLogs(data.data);
+      const [summary, anomalies] = await Promise.all([
+        aiClient.summarizeAudit({
+          limit: 25,
+          action: action || undefined,
+          actorType: actorType || undefined,
+          entityType: entityType || undefined,
+        }),
+        aiClient.detectAnomalies({ limit: 10 }),
+      ]);
+      setAuditSummary(summary);
+      setAnomalySummary(anomalies);
       setStatus("success");
     } catch (error: any) {
       setMessage(error.message || "Failed to load audit logs.");
@@ -158,6 +188,83 @@ export default function AdminAuditLogsPage() {
         </div>
       </div>
 
+      {auditSummary ? (
+        <section className="dashboard-grid dashboard-main-grid">
+          <div className="card dashboard-section">
+            <SectionHeader
+              eyebrow="AI Audit Summary"
+              title="Executive narrative"
+              subtitle="A concise summary grounded in the filtered audit stream and blockchain proof coverage."
+            />
+            <div className="dashboard-inline-badges">
+              <span className="badge success">Verified Insight</span>
+              <span className="badge subtle">
+                {auditSummary.verificationCoverage}% proof coverage
+              </span>
+            </div>
+            <p>{auditSummary.summary}</p>
+            <div className="dashboard-list">
+              {auditSummary.keyEvents.map((event) => (
+                <div key={event} className="dashboard-list-row">
+                  <strong>Key event</strong>
+                  <span>{event}</span>
+                </div>
+              ))}
+            </div>
+            {auditSummary.anomalies.length ? (
+              <div className="dashboard-list">
+                {auditSummary.anomalies.map((item) => (
+                  <div key={item} className="dashboard-list-row">
+                    <strong>Coverage gap</strong>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          <aside className="card dashboard-section">
+            <SectionHeader
+              eyebrow="Anomaly Alerts"
+              title="Flagged inconsistencies"
+              subtitle="Rule-based checks explained by the AI layer."
+            />
+            {anomalySummary ? (
+              <>
+                <div className="dashboard-inline-badges">
+                  <span
+                    className={`badge ${
+                      anomalySummary.severity === "HIGH" || anomalySummary.severity === "MEDIUM"
+                        ? "success"
+                        : "subtle"
+                    }`}
+                  >
+                    {anomalySummary.severity} severity
+                  </span>
+                  <span className="muted">
+                    {anomalySummary.provider} · {anomalySummary.model}
+                  </span>
+                </div>
+                <p>{anomalySummary.explanation}</p>
+                <div className="dashboard-list">
+                  {anomalySummary.anomalies.map((item) => (
+                    <div key={`${item.category}-${item.referenceId || item.title}`} className="dashboard-list-row">
+                      <strong>{item.title}</strong>
+                      <span>
+                        {item.category} · {item.severity}
+                        {item.referenceId ? ` · ${item.referenceId}` : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="muted">No anomaly analysis available for the current audit slice.</p>
+            )}
+          </aside>
+        </section>
+      ) : null}
+
       {message && logs.length > 0 && (
         <p className={status === "error" ? "status-error" : "status-success"}>
           {message}
@@ -208,6 +315,9 @@ export default function AdminAuditLogsPage() {
                       <div className="property-meta">
                         <span className="muted">property: {log.propertyId || "—"}</span>
                         <span className="muted">trade: {log.tradeId || "—"}</span>
+                        <span className="muted">
+                          proof: {log.tradeProof?.blockchainRef || log.propertyProof?.blockchainRef || "—"}
+                        </span>
                       </div>
                     </td>
                     <td className="action-cell">
@@ -229,6 +339,8 @@ export default function AdminAuditLogsPage() {
                             {
                               actorUser: log.actorUser,
                               targetUserId: log.targetUserId,
+                              propertyProof: log.propertyProof,
+                              tradeProof: log.tradeProof,
                               metadata: log.metadata,
                             },
                             null,

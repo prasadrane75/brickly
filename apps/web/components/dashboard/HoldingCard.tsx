@@ -1,5 +1,4 @@
-import { FutureBadge } from "../ui/FutureBadge";
-import { formatCurrency, formatPercent } from "../../shared/format";
+import { formatBlockchainHash, formatCurrency, formatPercent } from "../../shared/format";
 
 type HoldingCardProps = {
   propertyName: string;
@@ -10,6 +9,10 @@ type HoldingCardProps = {
   estimatedMonthlyIncome: number;
   allocationWeight: number;
   verificationStatus: string;
+  blockchainRef?: string | null;
+  blockchainVerified?: boolean;
+  proofLabel?: string;
+  proofRef?: string | null;
 };
 
 export function HoldingCard({
@@ -21,6 +24,10 @@ export function HoldingCard({
   estimatedMonthlyIncome,
   allocationWeight,
   verificationStatus,
+  blockchainRef,
+  blockchainVerified,
+  proofLabel,
+  proofRef,
 }: HoldingCardProps) {
   return (
     <article className="dashboard-holding-card">
@@ -38,10 +45,17 @@ export function HoldingCard({
       </p>
       <div className="dashboard-holding-metrics dashboard-holding-footnote">
         <span className="badge subtle">Allocation {formatPercent(allocationWeight)}</span>
-        <span className="badge subtle">{verificationStatus}</span>
+        <span className={`badge ${blockchainVerified ? "success" : "subtle"}`}>
+          {blockchainVerified ? "Verified" : verificationStatus}
+        </span>
       </div>
       <div className="dashboard-inline-badges">
-        <FutureBadge label="Verified Ownership" phase="PHASE_3_BLOCKCHAIN" />
+        <span className={`badge ${blockchainVerified ? "success" : "subtle"}`}>
+          {blockchainVerified ? "Property verified" : proofLabel || "Property proof pending"}
+        </span>
+        {proofRef || blockchainRef ? (
+          <span className="badge subtle">{formatBlockchainHash(proofRef || blockchainRef)}</span>
+        ) : null}
       </div>
     </article>
   );

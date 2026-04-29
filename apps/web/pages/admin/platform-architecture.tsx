@@ -78,10 +78,10 @@ export default function PlatformArchitecturePage() {
           <p className="architecture-eyebrow">Platform Architecture</p>
           <h1 className="section-title">Phase 1 Foundation</h1>
           <p className="architecture-summary">
-            This admin page surfaces the modular foundation now in place for the
-            investor demo: stable current product flows, explicit module
-            boundaries, and visible placeholders for later AI and blockchain
-            layers.
+            This admin page surfaces the implemented platform model now in place
+            for the investor demo: deterministic operational workflows in
+            Postgres, AI as an explanation layer, and blockchain as a proof
+            layer that never blocks the core app.
           </p>
         </div>
         <div className="architecture-hero-metrics">
@@ -121,7 +121,7 @@ export default function PlatformArchitecturePage() {
 
         <div className="card architecture-callout">
           <p className="architecture-callout-label">Future layers</p>
-          <h2>Reserved Extension Points</h2>
+          <h2>Active Extension Layers</h2>
           <div className="architecture-placeholder-list">
             <div className="architecture-placeholder">
               <span className="architecture-placeholder-title">AI Service</span>
@@ -129,8 +129,10 @@ export default function PlatformArchitecturePage() {
                 {overview?.placeholders.ai || "placeholder"}
               </span>
               <p className="muted">
-                `PHASE_2_AI` markers are in place for provider orchestration and
-                prompt pipelines.
+                AI is live as an additive interpretation layer. Portfolio,
+                document, transaction, and sell-price rationale flows degrade
+                safely to deterministic behavior when the provider is
+                unavailable.
               </p>
             </div>
             <div className="architecture-placeholder">
@@ -141,10 +143,44 @@ export default function PlatformArchitecturePage() {
                 {overview?.placeholders.blockchain || "placeholder"}
               </span>
               <p className="muted">
-                `PHASE_3_BLOCKCHAIN` markers are in place for ownership
-                verification and ledger integration.
+                Blockchain is live as a verification layer for ownership and
+                transfer proofs. Operational trades and holdings still run from
+                Prisma and remain available even if blockchain is down.
               </p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid architecture-kpi-grid">
+        <div className="card architecture-callout">
+          <p className="architecture-callout-label">Pricing Model</p>
+          <h2>Deterministic Recommendation First</h2>
+          <p className="muted">
+            Sell pricing is computed from reference price, liquidity score,
+            strategy multipliers, and market rules. The API owns the number; the
+            UI simply renders it.
+          </p>
+          <div className="architecture-pill-row">
+            <span className="architecture-pill">reference price</span>
+            <span className="architecture-pill">liquidity score</span>
+            <span className="architecture-pill">strategy</span>
+            <span className="architecture-pill">market rules</span>
+          </div>
+        </div>
+
+        <div className="card architecture-callout">
+          <p className="architecture-callout-label">AI Pricing Role</p>
+          <h2>Explanation, Not Authority</h2>
+          <p className="muted">
+            AI can explain why a sell recommendation looks aggressive,
+            balanced, or conservative, but it does not control the underlying
+            recommended price or block order placement.
+          </p>
+          <div className="architecture-pill-row">
+            <span className="architecture-pill">optional rationale</span>
+            <span className="architecture-pill">safe fallback</span>
+            <span className="architecture-pill">non-blocking</span>
           </div>
         </div>
       </section>

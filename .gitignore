@@ -1,6 +1,10 @@
 node_modules/
 .next/
 dist/
+.hardhat/
+artifacts/
+cache/
+cache/*.json
 .env
 .env.*
 .DS_Store

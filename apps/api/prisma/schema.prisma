@@ -150,6 +150,27 @@ enum AiRequestStatus {
   FAILED
 }
 
+enum BlockchainEntityType {
+  PROPERTY
+  TRADE
+  BUY_ORDER
+  SELL_ORDER
+  DOCUMENT
+}
+
+enum BlockchainRecordType {
+  OWNERSHIP_PROOF
+  TRANSFER_PROOF
+  DOCUMENT_ATTESTATION
+}
+
+enum BlockchainSyncStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  SKIPPED
+}
+
 model TargetingRuleConfig {
   id                    String   @id @default(uuid()) @db.Uuid
   name                  String   @unique
@@ -215,6 +236,7 @@ model User {
   auditLogs          AdminAuditLog[]     @relation("AuditActorUser")
   aiRequests         AiRequest[]
   aiPromptTemplates  AiPromptTemplate[]  @relation("AiPromptTemplateAuthor")
+  blockchainRecords  BlockchainRecord[]  @relation("BlockchainRecordOwner")
 
   @@index([email])
   @@index([phone])
@@ -282,6 +304,7 @@ model Property {
   notifications      Notification[]
   buyOrders          BuyOrder[]
   documents          Document[]
+  blockchainRecords  BlockchainRecord[]  @relation("BlockchainRecordProperty")
 
   @@index([city, state])
   @@index([status])
@@ -422,6 +445,7 @@ model SellOrder {
   targetedOffers TargetedOffer[]
   notifications  Notification[]
   documents      Document[]      @relation("SellOrderDocuments")
+  blockchainRecords BlockchainRecord[] @relation("BlockchainRecordSellOrder")
 
   @@index([userId])
   @@index([propertyId])
@@ -450,6 +474,7 @@ model Trade {
   buyer     User       @relation("BuyerTrades", fields: [buyerUserId], references: [id], onDelete: Restrict)
   seller    User       @relation("SellerTrades", fields: [sellerUserId], references: [id], onDelete: Restrict)
   documents Document[] @relation("TradeDocuments")
+  blockchainRecords BlockchainRecord[] @relation("BlockchainRecordTrade")
 
   @@index([sellOrderId])
   @@index([propertyId])
@@ -477,6 +502,7 @@ model BuyOrder {
   buyer     User       @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
   property  Property   @relation(fields: [propertyId], references: [id], onDelete: Cascade)
   documents Document[] @relation("BuyOrderDocuments")
+  blockchainRecords BlockchainRecord[] @relation("BlockchainRecordBuyOrder")
 
   @@index([buyerUserId])
   @@index([propertyId])
@@ -561,6 +587,7 @@ model Document {
   trade      Trade?     @relation("TradeDocuments", fields: [tradeId], references: [id], onDelete: Cascade)
   buyOrder   BuyOrder?  @relation("BuyOrderDocuments", fields: [buyOrderId], references: [id], onDelete: Cascade)
   sellOrder  SellOrder? @relation("SellOrderDocuments", fields: [sellOrderId], references: [id], onDelete: Cascade)
+  blockchainRecords BlockchainRecord[] @relation("BlockchainRecordDocument")
 
   @@index([uploadedByUserId])
   @@index([propertyId])
@@ -610,6 +637,50 @@ model PlatformConfig {
 
   @@unique([scope, key])
   @@index([scope, isActive])
+}
+
+model BlockchainRecord {
+  id              String               @id @default(uuid()) @db.Uuid
+  entityType      BlockchainEntityType
+  entityId        String
+  recordType      BlockchainRecordType
+  status          BlockchainSyncStatus @default(PENDING)
+  network         String
+  chainId         Int?
+  contractAddress String?
+  txHash          String?
+  blockNumber     Int?
+  logIndex        Int?
+  walletAddress   String?
+  ownerUserId     String?              @db.Uuid
+  propertyId      String?              @db.Uuid
+  tradeId         String?              @db.Uuid
+  buyOrderId      String?              @db.Uuid
+  sellOrderId     String?              @db.Uuid
+  documentId      String?              @db.Uuid
+  proofPayload    Json?
+  syncedAt        DateTime?
+  verifiedAt      DateTime?
+  lastError       String?              @db.Text
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  ownerUser User?      @relation("BlockchainRecordOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  property  Property?  @relation("BlockchainRecordProperty", fields: [propertyId], references: [id], onDelete: Cascade)
+  trade     Trade?     @relation("BlockchainRecordTrade", fields: [tradeId], references: [id], onDelete: Cascade)
+  buyOrder  BuyOrder?  @relation("BlockchainRecordBuyOrder", fields: [buyOrderId], references: [id], onDelete: Cascade)
+  sellOrder SellOrder? @relation("BlockchainRecordSellOrder", fields: [sellOrderId], references: [id], onDelete: Cascade)
+  document  Document?  @relation("BlockchainRecordDocument", fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([entityType, entityId, recordType, createdAt])
+  @@index([status, createdAt])
+  @@index([txHash])
+  @@index([propertyId])
+  @@index([tradeId])
+  @@index([buyOrderId])
+  @@index([sellOrderId])
+  @@index([documentId])
+  @@index([ownerUserId])
 }
 
 model AiRequest {

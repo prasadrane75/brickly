@@ -13,6 +13,9 @@ This document captures current business logic for market rules, pricing, liquidi
 - Market Rules are global configuration values.
 - Sell order strategy is per-order (`FAST_EXIT`, `BALANCED`, `MAX_PRICE`).
 - Recompute operations apply current global rules to active orders.
+- Recommended sell pricing is deterministic and computed by backend rules.
+- AI may explain a recommendation, but it does not author the numeric price.
+- Blockchain does not participate in pricing or liquidity calculations.
 
 ## Default Global Market Rules
 
@@ -107,6 +110,31 @@ Optimized price formula:
   - `optimized = min(optimized, referencePrice * maxPriceCapMultiplier)`
 - Result rounded to 4 decimals
 
+## Sell Recommendation Flow
+
+For the investor order form, the platform now exposes a sell-price recommendation
+before submission.
+
+Source of truth:
+
+- API computes the recommended price
+- UI displays the recommendation and strategy context
+- AI optionally adds a plain-language rationale
+
+Recommendation inputs:
+
+- `ShareClass.referencePricePerShare`
+- `Property.liquidityScore`
+- chosen sell strategy
+- current Market Rules multipliers
+- recent trade context and open buy interest for explanation only
+
+Important boundary:
+
+- the recommended numeric price comes from deterministic pricing code
+- AI does not override, mutate, or invent the recommended price
+- if AI fails, the recommendation still returns and the sell order flow remains usable
+
 ## Recompute Behavior (Current)
 
 Endpoints:
@@ -162,4 +190,3 @@ Match condition:
 - Liquidity weights must sum to `100` (`trade + time + deviation`)
 - `liquidityGoodThreshold > liquidityMidThreshold`
 - Multipliers and caps must be positive
-

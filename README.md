@@ -1,226 +1,212 @@
-# Brickly
+545# Brickly
 
-Brickly Phase 1 is an investor-demo-ready web application for fractional property investing. This phase focuses on the operational core only: auth, property discovery, portfolio views, orders, transactions, documents, notifications, and admin auditability. AI and blockchain are intentionally deferred, but the codebase now includes stable extension points for both.
+Brickly is a monorepo for a fractional real estate investing demo platform. The current implementation includes a Next.js web app, an Express/Prisma API, a Postgres database, an Expo mobile app, AI-assisted summary/explanation flows, and blockchain verification plumbing with demo and Hardhat-backed providers.
 
-## Phase 1 Scope
-Phase 1 includes:
-- user auth and KYC-aware access control
-- property and listing inventory
-- portfolio summary and holdings
-- internal order and transaction workflow
-- document attachments and stubbed local storage
-- notifications and admin audit history
-- investor-demo UI for dashboard, properties, portfolio, orders, documents, transactions, and admin views
+## What Is Implemented
 
-Phase 1 does not include:
-- real LLM calls
-- wallet or blockchain settlement
-- payment processing
+Current product areas in the repo:
+- authentication, registration, email verification, and KYC flows
+- property discovery, property detail, listings, and lister intake/import flows
+- portfolio, holdings, market buy/sell order flows, and transaction history
+- rental listings and rental application review
+- notifications, documents, and admin audit history
+- admin tooling for users, KYC, listers, MLS listings, liquidity, targeting, and market rules
+- AI-backed or deterministic-fallback portfolio summaries, document summaries, and transaction explanations
+- blockchain ownership/transfer verification endpoints plus local contract scripts
+- Expo mobile app covering portfolio, market, imports, notifications, liquidity, and admin views
 
-## Architecture Overview
-The application is a monorepo with a Next.js frontend, Node/Express backend, Postgres database, and Prisma ORM.
+## Repo Structure
 
-Current architecture:
-- frontend: [`apps/web`](/Users/prasadrane/Brickly/apps/web)
-- backend: [`apps/api`](/Users/prasadrane/Brickly/apps/api)
-- database schema and seeds: [`apps/api/prisma`](/Users/prasadrane/Brickly/apps/api/prisma)
-
-Backend organization:
-- [`src/config`](/Users/prasadrane/Brickly/apps/api/src/config): environment and runtime configuration
-- [`src/db`](/Users/prasadrane/Brickly/apps/api/src/db): Prisma client
-- [`src/modules`](/Users/prasadrane/Brickly/apps/api/src/modules): route/module manifests and `/v1` routing
-- [`src/repositories`](/Users/prasadrane/Brickly/apps/api/src/repositories): Prisma-backed data access
-- [`src/services`](/Users/prasadrane/Brickly/apps/api/src/services): operational services plus AI/blockchain placeholders
-- [`src/shared`](/Users/prasadrane/Brickly/apps/api/src/shared): shared HTTP/auth/error/logging utilities
-- [`src/index.ts`](/Users/prasadrane/Brickly/apps/api/src/index.ts): app entry point and legacy route composition
-
-Frontend organization:
-- [`components`](/Users/prasadrane/Brickly/apps/web/components): reusable UI and page presentation components
-- [`config`](/Users/prasadrane/Brickly/apps/web/config): runtime config
-- [`modules`](/Users/prasadrane/Brickly/apps/web/modules): frontend module ownership map
-- [`services`](/Users/prasadrane/Brickly/apps/web/services): API client, auth token storage, AI/blockchain placeholders
-- [`shared`](/Users/prasadrane/Brickly/apps/web/shared): shared frontend types and format helpers
-- [`pages`](/Users/prasadrane/Brickly/apps/web/pages): Next.js routes for the current demo
-
-## Folder Structure Summary
 ```text
 apps/
-  api/
-    prisma/
-      schema.prisma
-      seed.ts
-    src/
-      config/
-      db/
-      modules/
-      repositories/
-      services/
-        ai/
-        analytics/
-        blockchain/
-        operational/
-        storage/
-      shared/
-      index.ts
-  web/
-    components/
-      dashboard/
-      layout/
-      properties/
-      ui/
-    config/
-    modules/
-    pages/
-      admin/
-      properties/
-    services/
-      ai/
-      api/
-      auth/
-      blockchain/
-    shared/
-    styles/
+  api/       Express + Prisma backend
+  web/       Next.js frontend
+  mobile/    Expo mobile client
+contracts/   Solidity contract(s)
+db/          Docker Postgres bootstrap assets
+docs/        plans, runbooks, notes, and demo material
+scripts/     deploy, seed, migration, and blockchain demo scripts
 ```
 
-Module map:
-- auth
-- properties/assets
-- portfolio
-- transactions/orders
-- admin
-- uploads/documents
-- notifications
-- analytics placeholder
-- ai placeholder
-- blockchain placeholder
+Key locations:
+- [`apps/api`](/Users/prasadrane/Brickly/apps/api)
+- [`apps/web`](/Users/prasadrane/Brickly/apps/web)
+- [`apps/mobile`](/Users/prasadrane/Brickly/apps/mobile)
+- [`apps/api/prisma/schema.prisma`](/Users/prasadrane/Brickly/apps/api/prisma/schema.prisma)
+- [`docker-compose.yml`](/Users/prasadrane/Brickly/docker-compose.yml)
+- [`hardhat.config.js`](/Users/prasadrane/Brickly/hardhat.config.js)
 
-## Database Entities
-Main Phase 1 entities in [`schema.prisma`](/Users/prasadrane/Brickly/apps/api/prisma/schema.prisma):
-- `User`: application users, roles, verification posture
-- `Property`: investable property/asset record
-- `Listing`: listing metadata for a property
-- `ShareClass`: fractional ownership supply and pricing reference
-- `Holding`: user ownership in a property share class
-- `BuyOrder`: investor buy intent
-- `SellOrder`: investor sell intent
-- `Trade`: completed internal transaction record
-- `Document`: uploaded attachments linked to properties, trades, orders, or user/admin-note style references
-- `Notification`: user-facing operational event
-- `AdminAuditLog`: immutable admin/compliance-style activity history
-- `PlatformConfig`: Phase 1 configuration placeholder table
+## Stack
 
-Future-facing nullable fields already exist where natural:
-- `verificationStatus`
-- `blockchainTxHash`
-- `aiSummaryCache`
+- web: Next.js 16, React 18, TypeScript
+- api: Express, Prisma, PostgreSQL, Zod, JWT
+- mobile: Expo, React Native
+- AI: OpenAI or Ollama provider selection with deterministic fallback
+- blockchain: demo registry provider or Hardhat local provider
+- local infrastructure: Docker Compose for Postgres, optional API/web containers
 
-## Key API Endpoints
-Primary Phase 1 API surface lives under `/v1`:
+## Main Routes
 
-Core data:
-- `GET /v1/users/me`
-- `GET /v1/users/:userId/holdings`
-- `GET /v1/properties`
-- `GET /v1/properties/:propertyId`
-- `GET /v1/portfolio/summary`
+Web pages implemented under [`apps/web/pages`](/Users/prasadrane/Brickly/apps/web/pages):
+- investor: `/`, `/market`, `/properties`, `/portfolio`, `/orders`, `/buy-orders`, `/market-orders`, `/transactions`, `/documents`, `/alerts`, `/rentals`
+- auth and onboarding: `/login`, `/register`, `/verify`, `/kyc`
+- lister: `/listings`, `/listings/new`, `/lister/properties`, `/lister/import`, `/lister/import/[externalId]`
+- admin: `/admin/users`, `/admin/kyc`, `/admin/listers`, `/admin/mls-listings`, `/admin/liquidity`, `/admin/market-rules`, `/admin/targeting`, `/admin/rentals`, `/admin/rental-applications`, `/admin/audit-logs`, `/admin/platform-architecture`
 
-Orders and transactions:
-- `GET /v1/orders`
-- `POST /v1/orders`
-- `POST /v1/orders/:side/:orderId/cancel`
-- `GET /v1/transactions`
+API surface is split between legacy routes in [`apps/api/src/index.ts`](/Users/prasadrane/Brickly/apps/api/src/index.ts) and modular `/v1` routes in [`apps/api/src/modules/v1/router.ts`](/Users/prasadrane/Brickly/apps/api/src/modules/v1/router.ts).
 
-Documents:
-- `GET /v1/documents`
-- `GET /v1/documents/by-entity`
-- `POST /v1/documents/metadata`
-- `POST /v1/documents/upload-stub`
+Implemented API areas include:
+- auth: `/auth/register`, `/auth/login`, `/auth/verify`
+- properties and listings: `/properties`, `/properties/:id`, `/listings`, `/listings/mine`, `/import/*`
+- investing and portfolio: `/invest/buy`, `/portfolio`, `/market/sell-orders`, `/market/buy-orders`, `/transactions`
+- compliance and notifications: `/kyc/*`, `/notifications/*`
+- admin operations: `/admin/users`, `/admin/listers/*`, `/admin/mls-listings/*`, `/admin/liquidity/*`, `/admin/market-rules`, `/admin/targeting/*`, `/admin/audit-logs`
+- modular v1 routes: `/v1/properties`, `/v1/portfolio/summary`, `/v1/orders`, `/v1/transactions`, `/v1/documents`, `/v1/notifications`, `/v1/admin/audit-history`
+- AI and blockchain via v1: `/v1/portfolio/summary/ai`, `/v1/documents/:documentId/summarize`, `/v1/ai/explain-transaction`, `/v1/blockchain/*`
 
-Notifications and audit:
-- `GET /v1/notifications`
-- `POST /v1/notifications/:id/read`
-- `POST /v1/notifications/read-all`
-- `GET /v1/admin/audit-history`
+## Data Model Highlights
+
+The Prisma schema covers more than the original Phase 1 demo. Major entities include:
+- users, verification tokens, and KYC profiles
+- properties, images, listings, share classes, holdings
+- buy orders, sell orders, trades, and targeted offers
+- documents, notifications, and admin audit logs
+- rentals and rental applications
+- MLS listings and property import source tracking
+- targeting rule config and market rule config
+- AI requests and prompt templates
+- blockchain records and sync status
+
+See [`apps/api/prisma/schema.prisma`](/Users/prasadrane/Brickly/apps/api/prisma/schema.prisma) for the full model.
 
 ## Local Development
+
 Prerequisites:
 - Node.js 18+
 - Docker Desktop
 
-Install and start:
+Install dependencies:
+
 ```bash
 npm install
-npm run db:up
-DATABASE_URL=postgres://app:app@localhost:5433/fractional npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+```
+
+Start the database only:
+
+```bash
+docker compose up db
+```
+
+Apply Prisma migrations and seed demo data:
+
+```bash
+DATABASE_URL=postgres://app:app@localhost:5433/fractional npm --workspace apps/api run prisma:migrate
 DATABASE_URL=postgres://app:app@localhost:5433/fractional npm --workspace apps/api run prisma:seed
+```
+
+Run API and web locally:
+
+```bash
+npm --workspace apps/api run dev
+npm --workspace apps/web run dev
+```
+
+Or run the top-level combined dev workflow:
+
+```bash
 npm run dev
 ```
 
 Local URLs:
-- API: `http://localhost:4000`
-- Web: `http://localhost:3000`
-- Postgres: `postgres://app:app@localhost:5433/fractional`
+- web: `http://localhost:3000`
+- api: `http://localhost:4000`
+- health: `http://localhost:4000/health`
+- postgres: `postgres://app:app@localhost:5433/fractional`
 
-Stop Postgres:
+Stop local containers:
+
 ```bash
 npm run db:down
 ```
 
-## Seed Demo Data
-The Phase 1 seed script creates:
-- 5 demo users
-- 3 properties
-- holdings across multiple properties
-- sample buy/sell orders
-- transaction history
-- documents
-- notifications
-- admin audit logs
+## Environment Notes
 
-Run seed:
-```bash
-DATABASE_URL=postgres://app:app@localhost:5433/fractional npm --workspace apps/api run prisma:seed
-```
+Important API environment variables currently used by the app:
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `CORS_ORIGINS`
+- `WEB_BASE_URL`
+- `DISABLE_EMAIL_VERIFICATION`
+- `ALLOW_EMAIL_BYPASS`
+- `AI_ENABLED`
+- `AI_PROVIDER`
+- `AI_REASONING_EFFORT`
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `OPENAI_BASE_URL`
+- `BLOCKCHAIN_ENABLED`
+- `BLOCKCHAIN_PROVIDER`
+- `BLOCKCHAIN_NETWORK`
+- `BLOCKCHAIN_CHAIN_ID`
+- `BLOCKCHAIN_RPC_URL`
+- `BLOCKCHAIN_CONTRACT_ADDRESS`
+- `BLOCKCHAIN_DEPLOYER_PRIVATE_KEY`
 
-Demo credentials:
+The API defaults to `postgres://app:app@localhost:5433/fractional` when `DATABASE_URL` is unset. AI falls back to deterministic responses when the configured provider is unavailable.
+
+## Seeded Demo Users
+
+The seed script in [`apps/api/prisma/seed.ts`](/Users/prasadrane/Brickly/apps/api/prisma/seed.ts) creates:
 - `admin@fractional.app / demo-admin-123`
 - `lister@fractional.app / demo-lister-123`
 - `maya@fractional.app / demo-investor-123`
 - `noah@fractional.app / demo-investor-456`
 - `olivia@fractional.app / demo-investor-789`
 
-## Demo Walkthrough
-Recommended investor-demo path:
-1. Open `http://localhost:3000/login`
-2. Sign in as `maya@fractional.app / demo-investor-123`
-3. Review the dashboard at `/`
-4. Browse `/properties` and open a property detail page
-5. Open `/portfolio` for holdings and allocation
-6. Use `/orders` to submit or cancel a demo order
-7. Review `/transactions` and `/documents`
-8. Open `/alerts` to show operational notifications
-9. Sign in as admin and open `/admin/audit-logs`
-10. Open `/admin/platform-architecture` to show the Phase 1 foundation and future seams
+It also provisions sample properties, listings, holdings, orders, trades, notifications, documents, configuration rows, and KYC-approved demo users.
 
-## Future Roadmap
-Phase 2 AI:
-- backend home: [`apps/api/src/services/ai`](/Users/prasadrane/Brickly/apps/api/src/services/ai)
-- frontend home: [`apps/web/services/ai`](/Users/prasadrane/Brickly/apps/web/services/ai)
-- planned use cases:
-  - portfolio summaries
-  - document summarization
-  - property insight widgets
-  - operational support tooling
+## Mobile App
 
-Phase 3 blockchain:
-- backend home: [`apps/api/src/services/blockchain`](/Users/prasadrane/Brickly/apps/api/src/services/blockchain)
-- frontend home: [`apps/web/services/blockchain`](/Users/prasadrane/Brickly/apps/web/services/blockchain)
-- planned use cases:
-  - ownership verification
-  - transfer settlement references
-  - blockchain-backed audit enrichment
-  - verified transaction confirmations
+The Expo app lives in [`apps/mobile`](/Users/prasadrane/Brickly/apps/mobile).
 
-Notes:
-- TODO markers such as `PHASE_2_AI` and `PHASE_3_BLOCKCHAIN` are already placed in key services and screens.
-- The current structure is designed so AI and blockchain can be layered in later without major route or schema rewrites.
+Run it with:
+
+```bash
+npm --workspace apps/mobile run start
+```
+
+Note: [`apps/mobile/App.tsx`](/Users/prasadrane/Brickly/apps/mobile/App.tsx) currently points to a hard-coded API base URL for LAN testing. Update that value if your API is not running at the configured host.
+
+## Blockchain Commands
+
+Local blockchain scripts available from the repo root:
+
+```bash
+npm run chain:node
+npm run chain:compile
+npm run chain:deploy
+npm run chain:demo
+```
+
+Relevant files:
+- [`contracts/BricklyOwnershipRegistry.sol`](/Users/prasadrane/Brickly/contracts/BricklyOwnershipRegistry.sol)
+- [`scripts/deploy.js`](/Users/prasadrane/Brickly/scripts/deploy.js)
+- [`scripts/demo-ownership-flow.js`](/Users/prasadrane/Brickly/scripts/demo-ownership-flow.js)
+
+## Tests
+
+Available test entry points:
+
+```bash
+npm --workspace apps/api run test
+npm --workspace apps/api run test:smoke
+npm --workspace apps/web run test:e2e
+```
+
+## Additional Docs
+
+- [`docs/README.md`](/Users/prasadrane/Brickly/docs/README.md)
+- [`docs/PHASE_2_PLAN.md`](/Users/prasadrane/Brickly/docs/PHASE_2_PLAN.md)
+- [`docs/PHASE_3_PLAN.md`](/Users/prasadrane/Brickly/docs/PHASE_3_PLAN.md)
+- [`docs/phase3-blockchain-runbook.md`](/Users/prasadrane/Brickly/docs/phase3-blockchain-runbook.md)
+- [`CHANGELOG.md`](/Users/prasadrane/Brickly/CHANGELOG.md)

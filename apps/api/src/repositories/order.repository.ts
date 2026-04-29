@@ -108,6 +108,44 @@ export const orderRepository = {
     });
   },
 
+  findSellRecommendationContext(propertyId: string, tx?: DbClient) {
+    return getClient(tx).property.findUnique({
+      where: { id: propertyId },
+      include: {
+        shareClass: true,
+        listings: {
+          where: { status: "LISTED" },
+          orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
+          take: 1,
+        },
+        trades: {
+          orderBy: [{ tradedAt: "desc" }],
+          take: 5,
+          select: {
+            id: true,
+            pricePerShare: true,
+            sharesTraded: true,
+            tradedAt: true,
+          },
+        },
+        buyOrders: {
+          where: {
+            status: { in: [BuyOrderStatus.OPEN, BuyOrderStatus.PARTIAL] },
+          },
+          orderBy: [{ createdAt: "asc" }],
+          take: 10,
+          select: {
+            id: true,
+            orderType: true,
+            maxPricePerShare: true,
+            sharesRequested: true,
+            filledShares: true,
+          },
+        },
+      },
+    });
+  },
+
   findFallbackCounterpartyUser(excludeUserId: string, tx?: DbClient) {
     return getClient(tx).user.findFirst({
       where: { id: { not: excludeUserId }, role: { in: [UserRole.LISTER, UserRole.ADMIN] } },
@@ -295,7 +333,27 @@ export const orderRepository = {
   },
 
   createNotification(data: Prisma.NotificationUncheckedCreateInput, tx?: DbClient) {
-    return getClient(tx).notification.create({ data });
+    const client = getClient(tx);
+
+    if (data.sellOrderId) {
+      return client.notification.upsert({
+        where: {
+          userId_sellOrderId_type: {
+            userId: data.userId,
+            sellOrderId: data.sellOrderId,
+            type: data.type,
+          },
+        },
+        create: data,
+        update: {
+          message: data.message,
+          propertyId: data.propertyId ?? undefined,
+          readAt: null,
+        },
+      });
+    }
+
+    return client.notification.create({ data });
   },
 
   createAuditLog(data: Prisma.AdminAuditLogUncheckedCreateInput, tx?: DbClient) {
