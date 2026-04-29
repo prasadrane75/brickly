@@ -3,9 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "start": "next start",
+    "test:e2e": "playwright test --config=playwright.config.mjs",
+    "test:e2e:perf": "TEST_API_PORT=4110 TEST_WEB_PORT=3110 TEST_HARDHAT_HEALTH_PORT=9555 playwright test tests/performance.spec.mjs --config=playwright.config.mjs",
+    "test:e2e:perf:baseline": "TEST_API_PORT=4110 TEST_WEB_PORT=3110 TEST_HARDHAT_HEALTH_PORT=9555 WEB_PERF_WRITE_BASELINE=1 playwright test tests/performance.spec.mjs --config=playwright.config.mjs"
   },
   "dependencies": {
     "next": "^16.1.6",
@@ -13,6 +16,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.50.1",
     "@types/node": "^20.11.30",
     "@types/react": "^18.3.3",
     "typescript": "^5.4.5"

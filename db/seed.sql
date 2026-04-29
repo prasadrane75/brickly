@@ -1,3 +1,4 @@
+
 -- Seed data aligned with Prisma schema.
 INSERT INTO "User" ("id", "email", "passwordHash", "role", "emailVerified")
 VALUES

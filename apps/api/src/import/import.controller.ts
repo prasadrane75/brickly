@@ -206,6 +206,7 @@ export async function confirmImport(req: express.Request, res: express.Response)
           totalShares: shareClass.totalShares,
           sharesAvailable: shareClass.totalShares,
           referencePricePerShare: shareClass.referencePricePerShare,
+          lastReferenceUpdateAt: new Date(),
         },
       });
 

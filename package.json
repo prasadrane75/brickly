@@ -1,6 +1,7 @@
 {
   "name": "fractional-property-app",
   "private": true,
+  "type": "module",
   "workspaces": [
     "apps/*"
   ],
@@ -11,11 +12,40 @@
     "db:migrate": "docker compose exec -T db psql -U app -d fractional -f /db/migrations/001_init.sql",
     "db:seed": "docker compose exec -T db psql -U app -d fractional -f /db/seed.sql",
     "db:reset": "npm run db:migrate && npm run db:seed",
+    "chain:node": "hardhat node",
+    "chain:compile": "hardhat compile",
+    "chain:deploy": "hardhat run scripts/deploy.js --network localhost",
+    "chain:demo": "hardhat run scripts/demo-ownership-flow.js --network localhost",
+    "test:prepare": "node scripts/test/prepare-environment.mjs",
+    "test:start:hardhat": "node scripts/test/start-hardhat-node.mjs",
+    "test:start:api": "node --import tsx scripts/test/start-api.mjs",
+    "test:start:web": "node scripts/test/start-web.mjs",
+    "test:api": "node scripts/test/run-api-tests.mjs",
+    "test:api:perf": "node scripts/test/run-api-tests.mjs tests/api/performance.api.test.ts",
+    "test:api:perf:baseline": "API_PERF_WRITE_BASELINE=1 node scripts/test/run-api-tests.mjs tests/api/performance.api.test.ts",
+    "test:contracts": "hardhat test",
+    "test:e2e": "npm --workspace apps/web run test:e2e",
+    "test:e2e:perf": "npm --workspace apps/web run test:e2e:perf",
+    "test:e2e:perf:baseline": "npm --workspace apps/web run test:e2e:perf:baseline",
+    "test:verify": "npm run test:contracts && npm run test:api && npm run test:e2e",
     "prisma:generate": "npm --workspace apps/api run prisma:generate",
     "prisma:migrate": "npm --workspace apps/api run prisma:migrate",
-    "prisma:seed": "npm --workspace apps/api run prisma:seed"
+    "prisma:seed": "npm --workspace apps/api run prisma:seed",
+    "app:start": "bash scripts/dev-start.sh",
+    "app:stop": "bash scripts/dev-stop.sh",
+    "app:status": "bash scripts/dev-status.sh",
+    "test:api:reuse": "BRICKLY_TEST_REUSE_APP=true node scripts/test/run-api-tests.mjs",
+    "test:e2e:reuse": "BRICKLY_TEST_REUSE_APP=true npm --workspace apps/web run test:e2e",
+    "test:verify:reuse": "npm run test:contracts && npm run test:api:reuse && npm run test:e2e:reuse"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@nomicfoundation/hardhat-ethers": "^4.0.6",
+    "@nomicfoundation/hardhat-mocha": "^3.0.1",
+    "@playwright/test": "^1.58.1",
+    "@types/nodemailer": "^7.0.9",
+    "concurrently": "^8.2.2",
+    "ethers": "^6.16.0",
+    "hardhat": "^3.2.0",
+    "prisma": "^6.19.2"
   }
 }
